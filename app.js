@@ -1,4 +1,4 @@
-// Google Maps Timeline Analyzer - iPhone Compatible with Firebase & Settings
+// Google Maps Timeline Analyzer - Supabase Edition
 class TimelineAnalyzer {
     constructor() {
         this.timelineData = null;
@@ -9,16 +9,16 @@ class TimelineAnalyzer {
         this.isAuthenticated = false;
         this.storage = new TimelineStorage();
         this.settings = new SettingsManager();
-        this.firebase = new FirebaseManager();
+        this.supabase = new SupabaseManager();
         this.autocompleteTimeout = null;
         this.selectedAutocompleteIndex = -1;
 
         this.initializeElements();
         this.attachEventListeners();
         this.initGoogleAuth();
-        this.initFirebaseAuth();
-        this.loadStoredData(); // Auto-load data from IndexedDB
-        this.loadDefaultOffice(); // Auto-load default office settings
+        this.initSupabaseAuth();
+        this.loadStoredData();
+        this.loadDefaultOffice();
     }
 
     initializeElements() {
@@ -95,9 +95,9 @@ class TimelineAnalyzer {
                 Signing in...
             `;
 
-            console.log('Attempting Firebase sign-in...');
-            const user = await this.firebase.signInWithGoogle();
-            console.log('Sign-in successful:', user.email);
+            console.log('Attempting Supabase sign-in...');
+            await this.supabase.signInWithGoogle();
+            // Redirect will happen, user will return authenticated
 
             // Success - button will be updated by auth state listener
 
@@ -156,40 +156,27 @@ class TimelineAnalyzer {
         }, 10000);
     }
 
-    initFirebaseAuth() {
+    initSupabaseAuth() {
         // Listen for auth state changes
-        this.firebase.onAuthChange(async (user) => {
+        this.supabase.onAuthChange(async (user) => {
             if (user) {
-                console.log('=== FIREBASE USER SIGNED IN ===');
+                console.log('=== SUPABASE USER SIGNED IN ===');
                 console.log('Email:', user.email);
-                console.log('UID:', user.uid);
+                console.log('UID:', user.id);
 
                 this.updateSignInUI(user);
                 this.showNotification(`✓ Signed in as ${user.email}`, 'success');
 
-                // Try to load data from Firebase Storage
-                await this.loadDataFromFirebase();
+                // Try to load data from Supabase Storage
+                await this.loadDataFromSupabase();
 
-                // Try to load settings from Firestore
-                await this.loadSettingsFromFirebase();
+                // Try to load settings from Supabase
+                await this.loadSettingsFromSupabase();
 
             } else {
                 console.log('User signed out or not authenticated');
             }
         });
-
-        // Check if user is already signed in (for page refresh)
-        setTimeout(async () => {
-            const currentUser = this.firebase.getCurrentUser();
-            if (currentUser) {
-                console.log('User already signed in on page load');
-                this.updateSignInUI(currentUser);
-
-                // Also load data and settings from cloud
-                await this.loadDataFromFirebase();
-                await this.loadSettingsFromFirebase();
-            }
-        }, 1000);
     }
 
     updateSignInUI(user) {
@@ -212,26 +199,25 @@ class TimelineAnalyzer {
             const signOutBtn = document.getElementById('sign-out-btn');
             if (signOutBtn) {
                 signOutBtn.addEventListener('click', async () => {
-                    await this.firebase.signOut();
-                    location.reload(); // Reload page after sign-out
+                    await this.supabase.signOut();
                 });
             }
         }
     }
 
-    async loadDataFromFirebase() {
+    async loadDataFromSupabase() {
         try {
-            const storageInfo = await this.firebase.getStorageInfo();
+            const storageInfo = await this.supabase.getStorageInfo();
 
             if (storageInfo) {
-                console.log('=== LOADING FROM FIREBASE STORAGE ===');
+                console.log('=== LOADING FROM SUPABASE STORAGE ===');
                 console.log('File:', storageInfo.fileName);
                 console.log('Size:', storageInfo.sizeInMB, 'MB');
                 console.log('Uploaded:', new Date(storageInfo.uploadDate).toLocaleString());
 
                 this.showNotification('Loading your timeline data from cloud...', 'info');
 
-                const data = await this.firebase.downloadTimelineData();
+                const data = await this.supabase.downloadTimelineData();
 
                 if (data) {
                     this.timelineData = this.parseTimelineData(data);
@@ -252,16 +238,16 @@ class TimelineAnalyzer {
                 console.log('No cloud data found');
             }
         } catch (error) {
-            console.error('Error loading from Firebase:', error);
+            console.error('Error loading from Supabase:', error);
         }
     }
 
-    async loadSettingsFromFirebase() {
+    async loadSettingsFromSupabase() {
         try {
-            const settings = await this.firebase.getSettings();
+            const settings = await this.supabase.getSettings();
 
             if (settings && settings.defaultOffice) {
-                console.log('=== LOADING SETTINGS FROM FIRESTORE ===');
+                console.log('=== LOADING SETTINGS FROM SUPABASE ===');
                 const office = settings.defaultOffice;
 
                 this.officeNameInput.value = office.name;
@@ -278,7 +264,7 @@ class TimelineAnalyzer {
                 this.autoAnalyzeIfReady();
             }
         } catch (error) {
-            console.error('Error loading settings from Firebase:', error);
+            console.error('Error loading settings from Supabase:', error);
         }
     }
 
@@ -503,13 +489,13 @@ class TimelineAnalyzer {
             return;
         }
 
-        // If user is signed in, also save to Firestore
-        if (this.firebase.getCurrentUser()) {
+        // If user is signed in, also save to Supabase
+        if (this.supabase.getCurrentUser()) {
             try {
-                await this.firebase.saveSettings({ defaultOffice: officeData });
+                await this.supabase.saveSettings({ defaultOffice: officeData });
                 this.showNotification('✓ Office settings synced to cloud!', 'success');
             } catch (error) {
-                console.error('Error saving to Firestore:', error);
+                console.error('Error saving to Supabase:', error);
                 this.showNotification('⚠️ Saved locally, but cloud sync failed.', 'warning');
             }
         }
@@ -665,18 +651,18 @@ class TimelineAnalyzer {
             await this.storage.saveTimelineData(data, file.name);
             console.log('✓ Data saved to IndexedDB');
 
-            // If user is signed in, also upload to Firebase Storage
-            if (this.firebase.getCurrentUser()) {
-                console.log('✓ User signed in - uploading to Firebase Storage...');
+            // If user is signed in, also upload to Supabase Storage
+            if (this.supabase.getCurrentUser()) {
+                console.log('✓ User signed in - uploading to Supabase Storage...');
                 this.showNotification('Uploading to cloud storage...', 'info');
 
                 try {
-                    await this.firebase.uploadTimelineData(file, (progress) => {
+                    await this.supabase.uploadTimelineData(file, (progress) => {
                         console.log(`Upload progress: ${progress.toFixed(1)}%`);
                     });
                     this.showNotification('✓ Data saved to cloud! Available on all your devices.', 'success');
                 } catch (uploadError) {
-                    console.error('Firebase upload error:', uploadError);
+                    console.error('Supabase upload error:', uploadError);
                     this.showNotification('⚠️ Saved locally, but cloud upload failed. You can try again later.', 'warning');
                 }
             }
