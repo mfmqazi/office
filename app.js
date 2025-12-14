@@ -1,4 +1,4 @@
-// Google Maps Timeline Analyzer - iPhone Compatible with Settings & Autocomplete
+// Google Maps Timeline Analyzer - iPhone Compatible with Firebase & Settings
 class TimelineAnalyzer {
     constructor() {
         this.timelineData = null;
@@ -9,12 +9,14 @@ class TimelineAnalyzer {
         this.isAuthenticated = false;
         this.storage = new TimelineStorage();
         this.settings = new SettingsManager();
+        this.firebase = new FirebaseManager();
         this.autocompleteTimeout = null;
         this.selectedAutocompleteIndex = -1;
 
         this.initializeElements();
         this.attachEventListeners();
         this.initGoogleAuth();
+        this.initFirebaseAuth();
         this.loadStoredData(); // Auto-load data from IndexedDB
         this.loadDefaultOffice(); // Auto-load default office settings
     }
@@ -84,21 +86,34 @@ class TimelineAnalyzer {
     }
 
     async handleGoogleSignIn() {
-        const message = `
-            <div style="text-align: left;">
-                <p style="margin-bottom: 1rem;"><strong>Important Note:</strong></p>
-                <p style="margin-bottom: 1rem;">Google has restricted direct API access to Timeline data for privacy reasons. However, you can easily download your data:</p>
-                <ol style="margin-left: 1.5rem; margin-bottom: 1rem;">
-                    <li>Visit <a href="https://takeout.google.com/" target="_blank" style="color: #667eea;">Google Takeout</a></li>
-                    <li>Select "Location History" or "Timeline"</li>
-                    <li>Choose JSON format</li>
-                    <li>Download and upload the file below</li>
-                </ol>
-                <p style="color: #10b981;">✓ Your data stays private and is processed locally in your browser</p>
-            </div>
-        `;
+        try {
+            const googleSignInBtn = document.getElementById('google-signin-btn');
+            googleSignInBtn.disabled = true;
+            googleSignInBtn.innerHTML = `
+                <div class="spinner" style="width: 24px; height: 24px; border-width: 3px;"></div>
+                Signing in...
+            `;
 
-        this.showNotification(message, 'info');
+            await this.firebase.signInWithGoogle();
+
+            // Button will be updated by auth state listener
+
+        } catch (error) {
+            console.error('Sign-in error:', error);
+            this.showNotification('Sign-in failed. Please try again.', 'error');
+
+            const googleSignInBtn = document.getElementById('google-signin-btn');
+            googleSignInBtn.disabled = false;
+            googleSignInBtn.innerHTML = `
+                <svg class="google-icon" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Sign in with Google to Access Timeline
+            `;
+        }
     }
 
     showNotification(message, type = 'info') {
@@ -126,6 +141,91 @@ class TimelineAnalyzer {
             notification.style.animation = 'slideOutRight 0.3s ease-out';
             setTimeout(() => notification.remove(), 300);
         }, 10000);
+    }
+
+    initFirebaseAuth() {
+        // Listen for auth state changes
+        this.firebase.onAuthChange(async (user) => {
+            if (user) {
+                console.log('=== FIREBASE USER SIGNED IN ===');
+                console.log('Email:', user.email);
+                console.log('UID:', user.uid);
+
+                this.showNotification(`✓ Signed in as ${user.email}`, 'success');
+
+                // Try to load data from Firebase Storage
+                await this.loadDataFromFirebase();
+
+                // Try to load settings from Firestore
+                await this.loadSettingsFromFirebase();
+
+            } else {
+                console.log('User signed out or not authenticated');
+            }
+        });
+    }
+
+    async loadDataFromFirebase() {
+        try {
+            const storageInfo = await this.firebase.getStorageInfo();
+
+            if (storageInfo) {
+                console.log('=== LOADING FROM FIREBASE STORAGE ===');
+                console.log('File:', storageInfo.fileName);
+                console.log('Size:', storageInfo.sizeInMB, 'MB');
+                console.log('Uploaded:', new Date(storageInfo.uploadDate).toLocaleString());
+
+                this.showNotification('Loading your timeline data from cloud...', 'info');
+
+                const data = await this.firebase.downloadTimelineData();
+
+                if (data) {
+                    this.timelineData = this.parseTimelineData(data);
+
+                    if (this.timelineData && this.timelineData.length > 0) {
+                        this.fileName.textContent = storageInfo.fileName + ' (from cloud)';
+                        this.uploadArea.style.display = 'none';
+                        this.fileInfo.style.display = 'flex';
+
+                        this.populateYearSelect();
+                        this.validateForm();
+
+                        this.showNotification(`✓ Loaded ${this.timelineData.length} records from cloud`, 'success');
+                        this.autoAnalyzeIfReady();
+                    }
+                }
+            } else {
+                console.log('No cloud data found');
+            }
+        } catch (error) {
+            console.error('Error loading from Firebase:', error);
+        }
+    }
+
+    async loadSettingsFromFirebase() {
+        try {
+            const settings = await this.firebase.getSettings();
+
+            if (settings && settings.defaultOffice) {
+                console.log('=== LOADING SETTINGS FROM FIRESTORE ===');
+                const office = settings.defaultOffice;
+
+                this.officeNameInput.value = office.name;
+                this.officeAddressInput.value = office.address;
+                this.officeLatInput.value = office.lat;
+                this.officeLngInput.value = office.lng;
+                this.radiusInput.value = office.radius || 100;
+                this.radius = office.radius || 100;
+
+                this.saveDefaultBtn.style.display = 'inline-flex';
+                this.validateForm();
+
+                this.showNotification(`✓ Loaded office settings: ${office.name}`, 'success');
+                this.autoAnalyzeIfReady();
+            }
+        } catch (error) {
+            console.error('Error loading settings from Firebase:', error);
+        }
     }
 
     // Address Autocomplete Methods
@@ -327,7 +427,7 @@ class TimelineAnalyzer {
     }
 
     // Settings Methods
-    saveDefaultOffice() {
+    async saveDefaultOffice() {
         const officeData = {
             name: this.officeNameInput.value || 'My Office',
             address: this.officeAddressInput.value,
@@ -341,10 +441,23 @@ class TimelineAnalyzer {
             return;
         }
 
+        // Save to localStorage
         if (this.settings.saveDefaultOffice(officeData)) {
-            this.showNotification('✓ Default office saved! It will load automatically next time.', 'success');
+            this.showNotification('✓ Default office saved locally!', 'success');
         } else {
             this.showNotification('Error saving default office', 'error');
+            return;
+        }
+
+        // If user is signed in, also save to Firestore
+        if (this.firebase.getCurrentUser()) {
+            try {
+                await this.firebase.saveSettings({ defaultOffice: officeData });
+                this.showNotification('✓ Office settings synced to cloud!', 'success');
+            } catch (error) {
+                console.error('Error saving to Firestore:', error);
+                this.showNotification('⚠️ Saved locally, but cloud sync failed.', 'warning');
+            }
         }
     }
 
@@ -498,6 +611,22 @@ class TimelineAnalyzer {
             await this.storage.saveTimelineData(data, file.name);
             console.log('✓ Data saved to IndexedDB');
 
+            // If user is signed in, also upload to Firebase Storage
+            if (this.firebase.getCurrentUser()) {
+                console.log('✓ User signed in - uploading to Firebase Storage...');
+                this.showNotification('Uploading to cloud storage...', 'info');
+
+                try {
+                    await this.firebase.uploadTimelineData(file, (progress) => {
+                        console.log(`Upload progress: ${progress.toFixed(1)}%`);
+                    });
+                    this.showNotification('✓ Data saved to cloud! Available on all your devices.', 'success');
+                } catch (uploadError) {
+                    console.error('Firebase upload error:', uploadError);
+                    this.showNotification('⚠️ Saved locally, but cloud upload failed. You can try again later.', 'warning');
+                }
+            }
+
             this.fileName.textContent = file.name;
             this.uploadArea.style.display = 'none';
             this.fileInfo.style.display = 'flex';
@@ -505,7 +634,7 @@ class TimelineAnalyzer {
             this.populateYearSelect();
             this.validateForm();
 
-            this.showNotification(`✓ Successfully loaded ${this.timelineData.length} location records and saved for future use!`, 'success');
+            this.showNotification(`✓ Successfully loaded ${this.timelineData.length} location records!`, 'success');
         } catch (error) {
             alert('Error reading file: ' + error.message);
             console.error(error);
