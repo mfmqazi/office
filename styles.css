@@ -318,6 +318,72 @@ label {
     color: #ef4444;
 }
 
+/* Address Autocomplete */
+.address-autocomplete-container {
+    position: relative;
+}
+
+.autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: rgba(26, 26, 46, 0.98);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    margin-top: 0.5rem;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.autocomplete-item {
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-item:hover {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.autocomplete-item.selected {
+    background: rgba(102, 126, 234, 0.2);
+}
+
+.autocomplete-main {
+    color: var(--text-primary);
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.autocomplete-secondary {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.autocomplete-loading {
+    padding: 1rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+/* Settings Actions */
+.settings-actions {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--card-border);
+    display: flex;
+    justify-content: center;
+}
+
 input[type="text"],
 input[type="number"],
 select {

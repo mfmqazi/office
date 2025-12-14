@@ -1,4 +1,4 @@
-// Google Maps Timeline Analyzer - iPhone Compatible with IndexedDB Storage
+// Google Maps Timeline Analyzer - iPhone Compatible with Settings & Autocomplete
 class TimelineAnalyzer {
     constructor() {
         this.timelineData = null;
@@ -8,11 +8,15 @@ class TimelineAnalyzer {
         this.selectedYear = null;
         this.isAuthenticated = false;
         this.storage = new TimelineStorage();
+        this.settings = new SettingsManager();
+        this.autocompleteTimeout = null;
+        this.selectedAutocompleteIndex = -1;
 
         this.initializeElements();
         this.attachEventListeners();
         this.initGoogleAuth();
         this.loadStoredData(); // Auto-load data from IndexedDB
+        this.loadDefaultOffice(); // Auto-load default office settings
     }
 
     initializeElements() {
@@ -25,12 +29,13 @@ class TimelineAnalyzer {
 
         // Office location elements
         this.officeAddressInput = document.getElementById('office-address');
-        this.searchAddressBtn = document.getElementById('search-address-btn');
+        this.autocompleteDropdown = document.getElementById('autocomplete-dropdown');
         this.addressStatus = document.getElementById('address-status');
         this.officeNameInput = document.getElementById('office-name');
         this.officeLatInput = document.getElementById('office-lat');
         this.officeLngInput = document.getElementById('office-lng');
         this.radiusInput = document.getElementById('radius');
+        this.saveDefaultBtn = document.getElementById('save-default-btn');
 
         // Month selection elements
         this.monthSelect = document.getElementById('month-select');
@@ -123,24 +128,29 @@ class TimelineAnalyzer {
         }, 10000);
     }
 
-    async searchAddress() {
-        const address = this.officeAddressInput.value.trim();
+    // Address Autocomplete Methods
+    handleAddressInput(e) {
+        const query = e.target.value.trim();
 
-        if (!address) {
-            this.showAddressStatus('Please enter an address', 'error');
+        if (query.length < 3) {
+            this.hideAutocomplete();
             return;
         }
 
-        this.searchAddressBtn.disabled = true;
-        this.searchAddressBtn.innerHTML = `
-            <div class="spinner" style="width: 18px; height: 18px; border-width: 2px;"></div>
-            Searching...
-        `;
+        // Debounce the search
+        clearTimeout(this.autocompleteTimeout);
+        this.autocompleteTimeout = setTimeout(() => {
+            this.searchAddressSuggestions(query);
+        }, 300);
+    }
 
+    async searchAddressSuggestions(query) {
         try {
+            this.showAutocompleteLoading();
+
             const response = await fetch(
                 `https://nominatim.openstreetmap.org/search?` +
-                `q=${encodeURIComponent(address)}&format=json&limit=1`,
+                `q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
                 {
                     headers: {
                         'User-Agent': 'OfficeVisitsAnalyzer/1.0'
@@ -153,40 +163,102 @@ class TimelineAnalyzer {
             }
 
             const data = await response.json();
-
-            if (data.length === 0) {
-                this.showAddressStatus('Address not found. Please try a different address or enter coordinates manually.', 'error');
-                return;
-            }
-
-            const location = data[0];
-            const lat = parseFloat(location.lat);
-            const lng = parseFloat(location.lon);
-
-            this.officeLatInput.value = lat.toFixed(6);
-            this.officeLngInput.value = lng.toFixed(6);
-
-            if (!this.officeNameInput.value && location.display_name) {
-                const nameParts = location.display_name.split(',');
-                this.officeNameInput.value = nameParts.slice(0, 2).join(',').trim();
-            }
-
-            this.showAddressStatus(`✓ Found: ${location.display_name}`, 'success');
-            this.validateForm();
+            this.displayAutocompleteSuggestions(data);
 
         } catch (error) {
-            console.error('Geocoding error:', error);
-            this.showAddressStatus('Error finding address. Please try again or enter coordinates manually.', 'error');
-        } finally {
-            this.searchAddressBtn.disabled = false;
-            this.searchAddressBtn.innerHTML = `
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                </svg>
-                Search
-            `;
+            console.error('Autocomplete error:', error);
+            this.hideAutocomplete();
         }
+    }
+
+    showAutocompleteLoading() {
+        this.autocompleteDropdown.innerHTML = '<div class="autocomplete-loading">Searching...</div>';
+        this.autocompleteDropdown.style.display = 'block';
+    }
+
+    displayAutocompleteSuggestions(suggestions) {
+        if (!suggestions || suggestions.length === 0) {
+            this.hideAutocomplete();
+            return;
+        }
+
+        this.autocompleteDropdown.innerHTML = '';
+        this.selectedAutocompleteIndex = -1;
+
+        suggestions.forEach((suggestion, index) => {
+            const item = document.createElement('div');
+            item.className = 'autocomplete-item';
+            item.dataset.index = index;
+
+            const mainText = suggestion.display_name.split(',').slice(0, 2).join(',');
+            const secondaryText = suggestion.display_name.split(',').slice(2).join(',');
+
+            item.innerHTML = `
+                <div class="autocomplete-main">${mainText}</div>
+                <div class="autocomplete-secondary">${secondaryText}</div>
+            `;
+
+            item.addEventListener('click', () => this.selectAddress(suggestion));
+            this.autocompleteDropdown.appendChild(item);
+        });
+
+        this.autocompleteDropdown.style.display = 'block';
+    }
+
+    handleAddressKeydown(e) {
+        const items = this.autocompleteDropdown.querySelectorAll('.autocomplete-item');
+        if (items.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            this.selectedAutocompleteIndex = Math.min(this.selectedAutocompleteIndex + 1, items.length - 1);
+            this.updateAutocompleteSelection(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            this.selectedAutocompleteIndex = Math.max(this.selectedAutocompleteIndex - 1, 0);
+            this.updateAutocompleteSelection(items);
+        } else if (e.key === 'Enter' && this.selectedAutocompleteIndex >= 0) {
+            e.preventDefault();
+            items[this.selectedAutocompleteIndex].click();
+        } else if (e.key === 'Escape') {
+            this.hideAutocomplete();
+        }
+    }
+
+    updateAutocompleteSelection(items) {
+        items.forEach((item, index) => {
+            if (index === this.selectedAutocompleteIndex) {
+                item.classList.add('selected');
+                item.scrollIntoView({ block: 'nearest' });
+            } else {
+                item.classList.remove('selected');
+            }
+        });
+    }
+
+    selectAddress(suggestion) {
+        const lat = parseFloat(suggestion.lat);
+        const lng = parseFloat(suggestion.lon);
+
+        this.officeLatInput.value = lat.toFixed(6);
+        this.officeLngInput.value = lng.toFixed(6);
+        this.officeAddressInput.value = suggestion.display_name;
+
+        if (!this.officeNameInput.value) {
+            const nameParts = suggestion.display_name.split(',');
+            this.officeNameInput.value = nameParts.slice(0, 2).join(',').trim();
+        }
+
+        this.hideAutocomplete();
+        this.showAddressStatus(`✓ Selected: ${suggestion.display_name}`, 'success');
+        this.saveDefaultBtn.style.display = 'inline-flex';
+        this.validateForm();
+    }
+
+    hideAutocomplete() {
+        this.autocompleteDropdown.style.display = 'none';
+        this.autocompleteDropdown.innerHTML = '';
+        this.selectedAutocompleteIndex = -1;
     }
 
     showAddressStatus(message, type) {
@@ -201,6 +273,75 @@ class TimelineAnalyzer {
         }
     }
 
+    // Settings Methods
+    saveDefaultOffice() {
+        const officeData = {
+            name: this.officeNameInput.value || 'My Office',
+            address: this.officeAddressInput.value,
+            lat: parseFloat(this.officeLatInput.value),
+            lng: parseFloat(this.officeLngInput.value),
+            radius: parseInt(this.radiusInput.value)
+        };
+
+        if (!officeData.lat || !officeData.lng) {
+            this.showNotification('Please select a valid address first', 'error');
+            return;
+        }
+
+        if (this.settings.saveDefaultOffice(officeData)) {
+            this.showNotification('✓ Default office saved! It will load automatically next time.', 'success');
+        } else {
+            this.showNotification('Error saving default office', 'error');
+        }
+    }
+
+    loadDefaultOffice() {
+        const defaultOffice = this.settings.getDefaultOffice();
+
+        if (defaultOffice) {
+            console.log('=== LOADING DEFAULT OFFICE ===');
+            console.log('Office:', defaultOffice.name);
+            console.log('Address:', defaultOffice.address);
+
+            this.officeNameInput.value = defaultOffice.name;
+            this.officeAddressInput.value = defaultOffice.address;
+            this.officeLatInput.value = defaultOffice.lat;
+            this.officeLngInput.value = defaultOffice.lng;
+            this.radiusInput.value = defaultOffice.radius || 100;
+            this.radius = defaultOffice.radius || 100;
+
+            this.saveDefaultBtn.style.display = 'inline-flex';
+            this.validateForm();
+
+            this.showNotification(`✓ Loaded default office: ${defaultOffice.name}`, 'success');
+
+            // Auto-analyze if we have data
+            this.autoAnalyzeIfReady();
+        }
+    }
+
+    autoAnalyzeIfReady() {
+        // Check if we have all required data
+        if (this.timelineData &&
+            this.officeLatInput.value &&
+            this.officeLngInput.value) {
+
+            // Set to current month if not set
+            if (!this.monthSelect.value) {
+                const now = new Date();
+                this.monthSelect.value = now.getMonth();
+            }
+
+            console.log('✓ Auto-analyzing with saved settings...');
+            // Small delay to let UI update
+            setTimeout(() => {
+                if (this.analyzeBtn && !this.analyzeBtn.disabled) {
+                    this.analyzeVisits();
+                }
+            }, 500);
+        }
+    }
+
     attachEventListeners() {
         // File upload
         this.uploadArea.addEventListener('click', () => this.fileInput.click());
@@ -212,14 +353,16 @@ class TimelineAnalyzer {
         this.uploadArea.addEventListener('dragleave', (e) => this.handleDragLeave(e));
         this.uploadArea.addEventListener('drop', (e) => this.handleDrop(e));
 
-        // Address search
-        this.searchAddressBtn.addEventListener('click', () => this.searchAddress());
-        this.officeAddressInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                this.searchAddress();
-            }
+        // Address autocomplete
+        this.officeAddressInput.addEventListener('input', (e) => this.handleAddressInput(e));
+        this.officeAddressInput.addEventListener('keydown', (e) => this.handleAddressKeydown(e));
+        this.officeAddressInput.addEventListener('blur', () => {
+            // Delay to allow click on dropdown item
+            setTimeout(() => this.hideAutocomplete(), 200);
         });
+
+        // Save default office button
+        this.saveDefaultBtn.addEventListener('click', () => this.saveDefaultOffice());
 
         // Form inputs
         this.officeLatInput.addEventListener('input', () => this.validateForm());
