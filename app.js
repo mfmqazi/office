@@ -1176,6 +1176,14 @@ class TimelineAnalyzer {
         return `${minutes}m`;
     }
 
+    formatTime(date) {
+        if (!date || !(date instanceof Date)) return 'N/A';
+        return date.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
     exportResults() {
         if (!this.currentResults) return;
 
