@@ -179,11 +179,15 @@ class TimelineAnalyzer {
         });
 
         // Check if user is already signed in (for page refresh)
-        setTimeout(() => {
+        setTimeout(async () => {
             const currentUser = this.firebase.getCurrentUser();
             if (currentUser) {
                 console.log('User already signed in on page load');
                 this.updateSignInUI(currentUser);
+
+                // Also load data and settings from cloud
+                await this.loadDataFromFirebase();
+                await this.loadSettingsFromFirebase();
             }
         }, 1000);
     }
