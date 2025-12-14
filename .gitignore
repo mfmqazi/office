@@ -1,0 +1,38 @@
+# Timeline Data Files - NEVER COMMIT THESE!
+*.json
+
+# Except package.json if you add one later
+!package.json
+!package-lock.json
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node modules (if you add npm later)
+node_modules/
+
+# Build outputs
+dist/
+build/

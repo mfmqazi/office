@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Office Visits Analyzer - Google Maps Timeline</title>
+    <meta name="description" content="Analyze your Google Maps Timeline to track office visits by month">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">
+                    <svg class="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                    Office Visits Analyzer
+                </h1>
+                <p class="subtitle">Track your office visits from Google Maps Timeline data</p>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Step 1: Upload Timeline Data -->
+            <section class="card" id="upload-section">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="step-number">1</span>
+                        Upload Timeline Data
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <div class="upload-area" id="upload-area">
+                        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p class="upload-text">Drop your Google Maps Timeline JSON file here</p>
+                        <p class="upload-subtext">or click to browse</p>
+                        <input type="file" id="file-input" accept=".json" hidden>
+                    </div>
+                    <div class="file-info" id="file-info" style="display: none;">
+                        <div class="file-name-container">
+                            <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                <polyline points="13 2 13 9 20 9"></polyline>
+                            </svg>
+                            <span id="file-name"></span>
+                        </div>
+                        <button class="btn-remove" id="remove-file">Remove</button>
+                    </div>
+                    <div class="help-text">
+                        <p><strong>How to get your data:</strong></p>
+                        <ol>
+                            <li>Go to <a href="https://takeout.google.com/" target="_blank">Google Takeout</a></li>
+                            <li>Select "Location History" or "Timeline"</li>
+                            <li>Download your data in JSON format</li>
+                            <li>Upload the JSON file here</li>
+                        </ol>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 2: Define Office Location -->
+            <section class="card" id="location-section">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="step-number">2</span>
+                        Define Office Location
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="office-address">Office Address *</label>
+                        <div class="address-input-container">
+                            <input type="text" id="office-address"
+                                placeholder="e.g., 1600 Amphitheatre Parkway, Mountain View, CA" required>
+                            <button class="btn-search" id="search-address-btn" type="button">
+                                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <path d="m21 21-4.35-4.35"></path>
+                                </svg>
+                                Search
+                            </button>
+                        </div>
+                        <small id="address-status" style="display: none;"></small>
+                    </div>
+
+                    <div class="divider" style="margin: 1.5rem 0;">
+                        <span>OR ENTER COORDINATES MANUALLY</span>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="office-lat">Latitude</label>
+                            <input type="number" id="office-lat" step="any" placeholder="e.g., 37.7749">
+                        </div>
+                        <div class="form-group">
+                            <label for="office-lng">Longitude</label>
+                            <input type="number" id="office-lng" step="any" placeholder="e.g., -122.4194">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="office-name">Office Name (Optional)</label>
+                        <input type="text" id="office-name" placeholder="e.g., My Office, Headquarters">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="radius">Detection Radius (meters)</label>
+                        <input type="number" id="radius" value="100" min="10" max="1000" step="10">
+                        <small>Visits within this radius will be counted</small>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 3: Select Month -->
+            <section class="card" id="month-section">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="step-number">3</span>
+                        Select Month
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="month-select">Month</label>
+                            <select id="month-select">
+                                <option value="">Select a month</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="year-select">Year</label>
+                            <select id="year-select">
+                                <option value="">Select a year</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn-primary" id="analyze-btn" disabled>
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                        </svg>
+                        Analyze Visits
+                    </button>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="card results-card" id="results-section" style="display: none;">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <svg class="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 3v18h18"></path>
+                            <path d="M18 17V9"></path>
+                            <path d="M13 17V5"></path>
+                            <path d="M8 17v-3"></path>
+                        </svg>
+                        Analysis Results
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon stat-icon-primary">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                    <circle cx="12" cy="10" r="3"></circle>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <p class="stat-label">Total Office Visits</p>
+                                <p class="stat-value" id="total-visits">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon stat-icon-success">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <p class="stat-label">Unique Days</p>
+                                <p class="stat-value" id="unique-days">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon stat-icon-warning">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                            </div>
+                            <div class="stat-content">
+                                <p class="stat-label">Avg. Duration</p>
+                                <p class="stat-value" id="avg-duration">0h</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="visits-list" id="visits-list">
+                        <!-- Visit items will be inserted here -->
+                    </div>
+
+                    <div class="export-section">
+                        <button class="btn-secondary" id="export-btn">
+                            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Export Results (CSV)
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>Your data is processed locally in your browser. Nothing is uploaded to any server.</p>
+        </footer>
+    </div>
+
+    <div class="loading-overlay" id="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p class="loading-text">Analyzing your timeline...</p>
+        </div>
+    </div>
+
+    <script src="storage.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

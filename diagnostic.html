@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timeline Data Diagnostic Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 2rem;
+        }
+
+        .upload-section {
+            background: #16213e;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            padding: 2rem;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .results {
+            background: #16213e;
+            padding: 2rem;
+            border-radius: 12px;
+            display: none;
+        }
+
+        .info-box {
+            background: #0f3460;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #667eea;
+        }
+
+        .success {
+            border-left-color: #10b981;
+        }
+
+        .warning {
+            border-left-color: #f59e0b;
+        }
+
+        .error {
+            border-left-color: #ef4444;
+        }
+
+        pre {
+            background: #0a0e27;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .sample-records {
+            margin-top: 1rem;
+        }
+
+        .record {
+            background: #0a0e27;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-top: 1rem;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🔍 Google Timeline Data Diagnostic Tool</h1>
+
+        <div class="upload-section">
+            <h2>Upload Your Timeline JSON File</h2>
+            <div class="upload-area" id="upload-area">
+                <p>📁 Click or drag your Google Timeline JSON file here</p>
+                <input type="file" id="file-input" accept=".json" hidden>
+            </div>
+        </div>
+
+        <div class="results" id="results">
+            <h2>Diagnostic Results</h2>
+            <div id="output"></div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const results = document.getElementById('results');
+        const output = document.getElementById('output');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.background = 'rgba(102, 126, 234, 0.2)';
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.background = '';
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.background = '';
+            handleFile(e.dataTransfer.files[0]);
+        });
+
+        async function handleFile(file) {
+            if (!file || !file.name.endsWith('.json')) {
+                alert('Please upload a JSON file');
+                return;
+            }
+
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+
+                results.style.display = 'block';
+                output.innerHTML = '';
+
+                diagnoseData(data, file);
+            } catch (error) {
+                output.innerHTML = `<div class="info-box error"><strong>Error:</strong> ${error.message}</div>`;
+                results.style.display = 'block';
+            }
+        }
+
+        function diagnoseData(data, file) {
+            let html = '';
+
+            // File info
+            html += `<div class="info-box success">
+                <strong>✓ File loaded successfully</strong><br>
+                Name: ${file.name}<br>
+                Size: ${(file.size / 1024).toFixed(2)} KB
+            </div>`;
+
+            // Structure analysis
+            html += `<div class="info-box">
+                <strong>Data Structure:</strong><br>
+                Type: ${Array.isArray(data) ? 'Array' : 'Object'}<br>
+                Top-level keys: ${Object.keys(data).join(', ')}
+            </div>`;
+
+            // Detect format
+            let format = 'Unknown';
+            let records = [];
+
+            if (Array.isArray(data)) {
+                format = 'Direct Array';
+                records = data.slice(0, 5);
+            } else if (data.timelineObjects) {
+                format = 'Timeline Objects (Records.json)';
+                records = data.timelineObjects.slice(0, 5);
+            } else if (data.semanticSegments) {
+                format = 'Semantic Segments';
+                records = data.semanticSegments.slice(0, 5);
+            } else if (data.locations) {
+                format = 'Legacy Location History';
+                records = data.locations.slice(0, 5);
+            }
+
+            html += `<div class="info-box ${format !== 'Unknown' ? 'success' : 'warning'}">
+                <strong>Detected Format:</strong> ${format}
+            </div>`;
+
+            // Sample records
+            html += `<div class="sample-records">
+                <h3>Sample Records (first 5):</h3>`;
+
+            records.forEach((record, i) => {
+                const timestamp = extractTimestamp(record);
+                const coords = extractCoords(record);
+
+                html += `<div class="record">
+                    <strong>Record ${i + 1}:</strong><br>
+                    <strong>Timestamp:</strong> ${timestamp || '❌ Not found'}<br>
+                    <strong>Coordinates:</strong> ${coords ? `✓ ${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}` : '❌ Not found'}<br>
+                    <details>
+                        <summary>View full record</summary>
+                        <pre>${JSON.stringify(record, null, 2)}</pre>
+                    </details>
+                </div>`;
+            });
+
+            html += `</div>`;
+
+            // Analysis summary
+            const totalRecords = Array.isArray(data) ? data.length :
+                data.timelineObjects ? data.timelineObjects.length :
+                    data.semanticSegments ? data.semanticSegments.length :
+                        data.locations ? data.locations.length : 0;
+
+            let withTimestamps = 0;
+            let withCoords = 0;
+            let years = new Set();
+
+            const allRecords = Array.isArray(data) ? data :
+                data.timelineObjects ? data.timelineObjects :
+                    data.semanticSegments ? data.semanticSegments :
+                        data.locations ? data.locations : [];
+
+            allRecords.forEach(record => {
+                const ts = extractTimestamp(record);
+                const coords = extractCoords(record);
+
+                if (ts) {
+                    withTimestamps++;
+                    const date = new Date(ts);
+                    if (!isNaN(date.getTime())) {
+                        years.add(date.getFullYear());
+                    }
+                }
+                if (coords) withCoords++;
+            });
+
+            html += `<div class="info-box">
+                <strong>Analysis Summary:</strong><br>
+                Total records: ${totalRecords}<br>
+                Records with timestamps: ${withTimestamps} (${((withTimestamps / totalRecords) * 100).toFixed(1)}%)<br>
+                Records with coordinates: ${withCoords} (${((withCoords / totalRecords) * 100).toFixed(1)}%)<br>
+                Years found: ${Array.from(years).sort().join(', ')}
+            </div>`;
+
+            // Recommendations
+            if (withTimestamps === 0 || withCoords === 0) {
+                html += `<div class="info-box error">
+                    <strong>⚠️ Issue Detected:</strong><br>
+                    ${withTimestamps === 0 ? '• No timestamps found in records<br>' : ''}
+                    ${withCoords === 0 ? '• No coordinates found in records<br>' : ''}
+                    This file may not be compatible with the analyzer. Please ensure you downloaded the correct Timeline/Location History file from Google Takeout.
+                </div>`;
+            } else {
+                html += `<div class="info-box success">
+                    <strong>✓ Data looks good!</strong><br>
+                    This file should work with the Office Visits Analyzer.
+                </div>`;
+            }
+
+            output.innerHTML = html;
+        }
+
+        function extractTimestamp(record) {
+            // Handle timelineObjects format
+            if (record.placeVisit) {
+                return record.placeVisit.duration?.startTimestamp ||
+                    record.placeVisit.duration?.startTimestampMs ||
+                    record.placeVisit.startTime;
+            }
+            if (record.activitySegment) {
+                return record.activitySegment.duration?.startTimestamp ||
+                    record.activitySegment.duration?.startTimestampMs ||
+                    record.activitySegment.startTime;
+            }
+
+            // Handle semantic segments
+            if (record.visit) {
+                return record.visit.duration?.startTimestamp ||
+                    record.visit.duration?.startTimestampMs;
+            }
+            if (record.activity) {
+                return record.activity.duration?.startTimestamp ||
+                    record.activity.duration?.startTimestampMs;
+            }
+
+            // Direct fields
+            return record.timestamp ||
+                record.timestampMs ||
+                record.startTime ||
+                record.duration?.startTimestamp ||
+                record.duration?.startTimestampMs;
+        }
+
+        function extractCoords(record) {
+            // Handle timelineObjects format
+            if (record.placeVisit) {
+                const loc = record.placeVisit.location;
+                if (loc && loc.latitudeE7 !== undefined) {
+                    return {
+                        lat: loc.latitudeE7 / 1e7,
+                        lng: loc.longitudeE7 / 1e7
+                    };
+                }
+            }
+            if (record.activitySegment) {
+                const loc = record.activitySegment.startLocation;
+                if (loc && loc.latitudeE7 !== undefined) {
+                    return {
+                        lat: loc.latitudeE7 / 1e7,
+                        lng: loc.longitudeE7 / 1e7
+                    };
+                }
+            }
+
+            // Handle semantic segments
+            if (record.visit?.topCandidate?.placeLocation) {
+                const loc = record.visit.topCandidate.placeLocation;
+                if (loc.latitudeE7 !== undefined) {
+                    return {
+                        lat: loc.latitudeE7 / 1e7,
+                        lng: loc.longitudeE7 / 1e7
+                    };
+                }
+            }
+
+            // Direct fields
+            if (record.latitudeE7 !== undefined) {
+                return {
+                    lat: record.latitudeE7 / 1e7,
+                    lng: record.longitudeE7 / 1e7
+                };
+            }
+
+            if (record.location?.latitudeE7 !== undefined) {
+                return {
+                    lat: record.location.latitudeE7 / 1e7,
+                    lng: record.location.longitudeE7 / 1e7
+                };
+            }
+
+            return null;
+        }
+    </script>
+</body>
+
+</html>
