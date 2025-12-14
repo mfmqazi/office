@@ -1042,74 +1042,46 @@ class TimelineAnalyzer {
         }, 100);
     }
 
-    // Process and cluster visits (group raw points, keep semantic visits separate)
+    // Process visits - each input visit becomes a separate output entry
     processVisits(rawVisits) {
+        console.log('=== PROCESS VISITS CALLED ===');
+        console.log('Input visits count:', rawVisits.length);
+
         if (rawVisits.length === 0) return [];
 
-        console.log('Processing visits...', rawVisits.length);
+        // Simply map each visit to the output format - NO CLUSTERING
+        const results = rawVisits.map((visit, index) => {
+            const loc = visit.location;
 
-        // Hybrid approach: We iterate and decide per-item whether it's a discrete visit or a point to cluster
-        const results = [];
-        let currentCluster = [];
-
-        for (let i = 0; i < rawVisits.length; i++) {
-            const current = rawVisits[i];
-            const loc = current.location;
-
-            // Check if this is a discrete semantic visit (has start/end time)
-            // We trust startTime/endTime presence implies a distinct visit 
-            const isDiscrete = !!(loc.startTime && loc.endTime);
-
-            if (i < 3) console.log(`Visit ${i}: isDiscrete=${isDiscrete}`, loc);
-
-            if (isDiscrete) {
-                // If we have a pending cluster of raw points, flush them first
-                if (currentCluster.length > 0) {
-                    results.push(this.createVisitFromCluster(currentCluster));
-                    currentCluster = [];
-                }
-
-                // Add this discrete visit directly
-                let duration = 0;
-                const s = new Date(loc.startTime);
-                const e = new Date(loc.endTime);
-                duration = e - s;
-
-                results.push({
-                    date: current.date,
-                    visits: 1,
-                    duration: duration,
-                    firstVisit: current,
-                    lastVisit: current
-                });
-            } else {
-                // It's a raw point or ambiguous - add to cluster
-                // Check if should break cluster first (time gap)
-                if (currentCluster.length > 0) {
-                    const previous = currentCluster[currentCluster.length - 1];
-                    let prevTime = previous.date.getTime();
-                    let currTime = current.date.getTime();
-
-                    if (previous.location.endTime) prevTime = new Date(previous.location.endTime).getTime();
-                    if (current.location.startTime) currTime = new Date(current.location.startTime).getTime();
-
-                    const diffMinutes = (currTime - prevTime) / (1000 * 60);
-
-                    if (diffMinutes > 60) {
-                        results.push(this.createVisitFromCluster(currentCluster));
-                        currentCluster = [];
-                    }
-                }
-                currentCluster.push(current);
+            // Calculate duration from startTime/endTime if available
+            let duration = 0;
+            if (loc.startTime && loc.endTime) {
+                const start = new Date(loc.startTime);
+                const end = new Date(loc.endTime);
+                duration = end - start;
             }
-        }
 
-        // Flush any remaining cluster
-        if (currentCluster.length > 0) {
-            results.push(this.createVisitFromCluster(currentCluster));
-        }
+            // If no duration calculated, default to 30 minutes
+            if (duration <= 0) duration = 30 * 60 * 1000;
 
-        console.log(`Processed into ${results.length} distinct visits`);
+            if (index < 5) {
+                console.log(`Output visit ${index}:`, {
+                    date: visit.date.toLocaleString(),
+                    duration: Math.round(duration / 60000) + ' mins',
+                    hasStartEnd: !!(loc.startTime && loc.endTime)
+                });
+            }
+
+            return {
+                date: visit.date,
+                visits: 1,
+                duration: duration,
+                firstVisit: visit,
+                lastVisit: visit
+            };
+        });
+
+        console.log('Output visits count:', results.length);
         return results;
     }
 
