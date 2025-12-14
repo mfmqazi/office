@@ -1030,9 +1030,9 @@ class TimelineAnalyzer {
 
                 visits.sort((a, b) => a.date - b.date);
 
-                const visitsByDay = this.groupVisitsByDay(visits);
+                const processedVisits = this.processVisits(visits);
 
-                this.displayResults(visitsByDay, visitDates.size);
+                this.displayResults(processedVisits, visitDates.size);
             } catch (error) {
                 alert('Error analyzing visits: ' + error.message);
                 console.error(error);
@@ -1042,112 +1042,152 @@ class TimelineAnalyzer {
         }, 100);
     }
 
-    groupVisitsByDay(visits) {
-        const grouped = {};
+    // Process and cluster visits (group raw points, keep semantic visits separate)
+    processVisits(rawVisits) {
+        if (rawVisits.length === 0) return [];
 
-        visits.forEach(visit => {
-            const dateKey = visit.date.toDateString();
-            if (!grouped[dateKey]) {
-                grouped[dateKey] = [];
-            }
-            grouped[dateKey].push(visit);
-        });
+        console.log('Processing visits...', rawVisits.length);
 
-        const result = [];
-        Object.entries(grouped).forEach(([dateKey, dayVisits]) => {
-            const firstVisit = dayVisits[0];
-            const lastVisit = dayVisits[dayVisits.length - 1];
+        // Hybrid approach: We iterate and decide per-item whether it's a discrete visit or a point to cluster
+        const results = [];
+        let currentCluster = [];
 
-            // Calculate duration using actual startTime and endTime from records
-            let duration = 0;
+        for (let i = 0; i < rawVisits.length; i++) {
+            const current = rawVisits[i];
+            const loc = current.location;
 
-            // For iPhone format, use startTime and endTime from each visit
-            dayVisits.forEach(visit => {
-                const loc = visit.location;
-                if (loc.startTime && loc.endTime) {
-                    const start = new Date(loc.startTime);
-                    const end = new Date(loc.endTime);
-                    if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-                        duration += (end - start);
+            // Check if this is a discrete semantic visit (has start/end time)
+            // We trust startTime/endTime presence implies a distinct visit 
+            const isDiscrete = !!(loc.startTime && loc.endTime);
+
+            if (i < 3) console.log(`Visit ${i}: isDiscrete=${isDiscrete}`, loc);
+
+            if (isDiscrete) {
+                // If we have a pending cluster of raw points, flush them first
+                if (currentCluster.length > 0) {
+                    results.push(this.createVisitFromCluster(currentCluster));
+                    currentCluster = [];
+                }
+
+                // Add this discrete visit directly
+                let duration = 0;
+                const s = new Date(loc.startTime);
+                const e = new Date(loc.endTime);
+                duration = e - s;
+
+                results.push({
+                    date: current.date,
+                    visits: 1,
+                    duration: duration,
+                    firstVisit: current,
+                    lastVisit: current
+                });
+            } else {
+                // It's a raw point or ambiguous - add to cluster
+                // Check if should break cluster first (time gap)
+                if (currentCluster.length > 0) {
+                    const previous = currentCluster[currentCluster.length - 1];
+                    let prevTime = previous.date.getTime();
+                    let currTime = current.date.getTime();
+
+                    if (previous.location.endTime) prevTime = new Date(previous.location.endTime).getTime();
+                    if (current.location.startTime) currTime = new Date(current.location.startTime).getTime();
+
+                    const diffMinutes = (currTime - prevTime) / (1000 * 60);
+
+                    if (diffMinutes > 60) {
+                        results.push(this.createVisitFromCluster(currentCluster));
+                        currentCluster = [];
                     }
                 }
-            });
-
-            // Fallback: if no startTime/endTime, use timestamp difference
-            if (duration === 0 && dayVisits.length > 0) {
-                duration = lastVisit.date - firstVisit.date;
+                currentCluster.push(current);
             }
+        }
 
-            result.push({
-                date: firstVisit.date,
-                visits: dayVisits.length,
-                duration: duration,
-                firstVisit: firstVisit,
-                lastVisit: lastVisit
-            });
-        });
+        // Flush any remaining cluster
+        if (currentCluster.length > 0) {
+            results.push(this.createVisitFromCluster(currentCluster));
+        }
 
-        return result;
+        console.log(`Processed into ${results.length} distinct visits`);
+        return results;
     }
 
-    displayResults(visitsByDay, uniqueDays) {
-        const totalVisits = visitsByDay.reduce((sum, day) => sum + day.visits, 0);
-        const totalDuration = visitsByDay.reduce((sum, day) => sum + day.duration, 0);
-        const avgDuration = visitsByDay.length > 0 ? totalDuration / visitsByDay.length : 0;
+    createVisitFromCluster(cluster) {
+        const first = cluster[0];
+        const last = cluster[cluster.length - 1];
+
+        let duration = last.date.getTime() - first.date.getTime();
+        if (duration === 0) duration = 5 * 60 * 1000;
+
+        return {
+            date: first.date,
+            visits: 1,
+            duration: duration,
+            firstVisit: first,
+            lastVisit: last
+        };
+    }
+
+    displayResults(visits, uniqueDays) {
+        const totalVisits = visits.length;
+        const totalDuration = visits.reduce((sum, v) => sum + v.duration, 0);
+        const avgDuration = totalVisits > 0 ? totalDuration / totalVisits : 0;
 
         this.totalVisitsEl.textContent = totalVisits;
         this.uniqueDaysEl.textContent = uniqueDays;
         this.avgDurationEl.textContent = this.formatDuration(avgDuration);
 
-        this.visitsListEl.innerHTML = '';
-        visitsByDay.forEach((day, index) => {
-            const visitItem = document.createElement('div');
-            visitItem.className = 'visit-item';
-            visitItem.style.setProperty('--index', index);
+        this.renderVisitsList(visits);
 
-            const dateStr = day.date.toLocaleDateString('en-US', {
+        this.currentResults = visits;
+    }
+
+    renderVisitsList(visits) {
+        this.visitsListEl.innerHTML = '';
+
+        if (visits.length === 0) {
+            this.visitsListEl.innerHTML = '<div class="no-results">No visits found matching your criteria</div>';
+            return;
+        }
+
+        visits.forEach((visit, index) => {
+            const item = document.createElement('div');
+            item.className = 'visit-item';
+            item.style.setProperty('--index', index);
+
+            const dateStr = visit.date.toLocaleDateString('en-US', {
                 weekday: 'short',
-                year: 'numeric',
                 month: 'short',
-                day: 'numeric'
+                day: 'numeric',
+                year: 'numeric'
             });
 
-            // Get start and end times from the actual visit records
-            let startTimeStr = 'N/A';
-            let endTimeStr = 'N/A';
+            let startTime = visit.firstVisit.date;
+            let endTime;
 
-            if (day.firstVisit.location.startTime) {
-                const startDate = new Date(day.firstVisit.location.startTime);
-                startTimeStr = startDate.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
+            // If semantic, try to get actual end time
+            if (visit.lastVisit.location.endTime) {
+                endTime = new Date(visit.lastVisit.location.endTime);
+            } else {
+                endTime = new Date(startTime.getTime() + visit.duration);
             }
 
-            if (day.lastVisit.location.endTime) {
-                const endDate = new Date(day.lastVisit.location.endTime);
-                endTimeStr = endDate.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-            }
+            const durationStr = this.formatDuration(visit.duration);
 
-            visitItem.innerHTML = `
+            item.innerHTML = `
                 <div class="visit-date">${dateStr}</div>
                 <div class="visit-time">
-                    <span style="color: var(--accent-success);">In:</span> ${startTimeStr}
+                    <span style="color: var(--accent-success);">In:</span> ${this.formatTime(startTime)}
                 </div>
                 <div class="visit-time">
-                    <span style="color: var(--accent-warning);">Out:</span> ${endTimeStr}
+                    <span style="color: var(--accent-warning);">Out:</span> ${this.formatTime(endTime)}
                 </div>
-                <div class="visit-duration">${this.formatDuration(day.duration)}</div>
+                <div class="visit-duration">${durationStr}</div>
             `;
 
-            this.visitsListEl.appendChild(visitItem);
+            this.visitsListEl.appendChild(item);
         });
-
-        this.currentResults = visitsByDay;
-
         this.resultsSection.style.display = 'block';
         this.resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
