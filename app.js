@@ -117,15 +117,7 @@ class TimelineAnalyzer {
             `;
 
             // Show user-friendly error message
-            if (error.code === 'auth/popup-closed-by-user') {
-                this.showNotification('Sign-in cancelled. Please try again.', 'info');
-            } else if (error.code === 'auth/unauthorized-domain') {
-                this.showNotification('⚠️ Domain not authorized. Add "localhost" to Firebase authorized domains.', 'error');
-            } else if (error.code === 'auth/popup-blocked') {
-                this.showNotification('⚠️ Popup blocked. Please allow popups for this site.', 'error');
-            } else {
-                this.showNotification(`Sign-in failed: ${error.message}`, 'error');
-            }
+            this.showNotification(`Sign-in failed: ${error.message}`, 'error');
         }
     }
 
