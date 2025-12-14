@@ -164,6 +164,31 @@ class TimelineAnalyzer {
                 console.log('Email:', user.email);
                 console.log('UID:', user.uid);
 
+                // Hide Google Sign-In button and show user info
+                const googleSignInContainer = document.querySelector('.google-signin-container');
+                if (googleSignInContainer) {
+                    googleSignInContainer.innerHTML = `
+                        <div style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; text-align: center;">
+                            <p style="color: var(--accent-success); margin-bottom: 0.5rem;">✓ Signed in as <strong>${user.email}</strong></p>
+                            <button class="btn-secondary" id="sign-out-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+                                Sign Out
+                            </button>
+                        </div>
+                        <div class="divider">
+                            <span>UPLOAD YOUR DATA</span>
+                        </div>
+                    `;
+
+                    // Add sign-out handler
+                    const signOutBtn = document.getElementById('sign-out-btn');
+                    if (signOutBtn) {
+                        signOutBtn.addEventListener('click', async () => {
+                            await this.firebase.signOut();
+                            location.reload(); // Reload page after sign-out
+                        });
+                    }
+                }
+
                 this.showNotification(`✓ Signed in as ${user.email}`, 'success');
 
                 // Try to load data from Firebase Storage
