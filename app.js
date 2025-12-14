@@ -148,9 +148,16 @@ class TimelineAnalyzer {
         try {
             this.showAutocompleteLoading();
 
+            // Add US bias and bounded search for better local results
             const response = await fetch(
                 `https://nominatim.openstreetmap.org/search?` +
-                `q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
+                `q=${encodeURIComponent(query)}` +
+                `&format=json` +
+                `&limit=10` +  // Get more results to filter
+                `&addressdetails=1` +
+                `&countrycodes=us` +  // Prioritize US addresses
+                `&bounded=1` +  // Prefer results within viewbox
+                `&viewbox=-125,49,-66,24`,  // US bounding box (west,north,east,south)
                 {
                     headers: {
                         'User-Agent': 'OfficeVisitsAnalyzer/1.0'
@@ -163,12 +170,58 @@ class TimelineAnalyzer {
             }
 
             const data = await response.json();
-            this.displayAutocompleteSuggestions(data);
+
+            // Filter and rank results
+            const filteredResults = this.filterAndRankResults(data, query);
+            this.displayAutocompleteSuggestions(filteredResults);
 
         } catch (error) {
             console.error('Autocomplete error:', error);
             this.hideAutocomplete();
         }
+    }
+
+    filterAndRankResults(results, query) {
+        if (!results || results.length === 0) return [];
+
+        // Filter out less relevant results
+        const filtered = results.filter(result => {
+            // Must have address details
+            if (!result.address) return false;
+
+            // Prefer results with street addresses
+            const hasStreet = result.address.road || result.address.street;
+            const hasCity = result.address.city || result.address.town || result.address.village;
+            const hasState = result.address.state;
+
+            return hasStreet && hasCity && hasState;
+        });
+
+        // Rank results by relevance
+        const ranked = filtered.map(result => {
+            let score = 0;
+            const queryLower = query.toLowerCase();
+            const displayLower = result.display_name.toLowerCase();
+
+            // Boost if query matches start of address
+            if (displayLower.startsWith(queryLower)) score += 10;
+
+            // Boost if has building/house number
+            if (result.address.house_number) score += 5;
+
+            // Boost commercial/office locations
+            if (result.type === 'commercial' || result.type === 'office') score += 3;
+
+            // Penalize very generic results
+            if (result.type === 'administrative') score -= 5;
+
+            return { ...result, _score: score };
+        });
+
+        // Sort by score and return top 5
+        return ranked
+            .sort((a, b) => b._score - a._score)
+            .slice(0, 5);
     }
 
     showAutocompleteLoading() {
