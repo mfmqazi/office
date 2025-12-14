@@ -62,89 +62,66 @@ class FirebaseManager {
         return this.currentUser;
     }
 
-    // Storage Methods - Upload Timeline JSON
+    // Storage Methods - Now using Supabase Storage
     async uploadTimelineData(file, onProgress) {
         if (!this.currentUser) {
             throw new Error('Must be signed in to upload');
         }
 
         const userId = this.currentUser.uid;
-        const storageRef = storage.ref(`users/${userId}/timeline.json`);
+        const supabaseStorage = new SupabaseStorageManager();
 
-        return new Promise((resolve, reject) => {
-            const uploadTask = storageRef.put(file);
+        try {
+            const metadata = await supabaseStorage.uploadTimelineFile(file, userId, onProgress);
 
-            uploadTask.on('state_changed',
-                (snapshot) => {
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    if (onProgress) onProgress(progress);
-                    console.log(`Upload progress: ${progress.toFixed(1)}%`);
-                },
-                (error) => {
-                    console.error('Upload error:', error);
-                    reject(error);
-                },
-                async () => {
-                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+            // Save metadata to Firestore
+            await this.saveTimelineMetadata(metadata);
 
-                    // Save metadata to Firestore
-                    await this.saveTimelineMetadata({
-                        fileName: file.name,
-                        fileSize: file.size,
-                        uploadDate: new Date().toISOString(),
-                        downloadURL: downloadURL
-                    });
-
-                    console.log('✓ Upload complete');
-                    resolve(downloadURL);
-                }
-            );
-        });
+            console.log('✓ Upload complete to Supabase');
+            return metadata.downloadURL;
+        } catch (error) {
+            console.error('Supabase upload error:', error);
+            throw error;
+        }
     }
 
-    // Download Timeline JSON
+    // Download Timeline JSON from Supabase
     async downloadTimelineData() {
         if (!this.currentUser) {
             throw new Error('Must be signed in to download');
         }
 
         const userId = this.currentUser.uid;
-        const storageRef = storage.ref(`users/${userId}/timeline.json`);
+        const supabaseStorage = new SupabaseStorageManager();
 
         try {
-            const downloadURL = await storageRef.getDownloadURL();
-            const response = await fetch(downloadURL);
-            const data = await response.json();
-            console.log('✓ Timeline data downloaded');
+            const data = await supabaseStorage.downloadTimelineFile(userId);
+            if (data) {
+                console.log('✓ Timeline data downloaded from Supabase');
+            }
             return data;
         } catch (error) {
-            if (error.code === 'storage/object-not-found') {
-                console.log('No timeline data found');
-                return null;
-            }
-            throw error;
+            console.error('Supabase download error:', error);
+            return null;
         }
     }
 
-    // Delete Timeline JSON
+    // Delete Timeline JSON from Supabase
     async deleteTimelineData() {
         if (!this.currentUser) {
             throw new Error('Must be signed in to delete');
         }
 
         const userId = this.currentUser.uid;
-        const storageRef = storage.ref(`users/${userId}/timeline.json`);
+        const supabaseStorage = new SupabaseStorageManager();
 
         try {
-            await storageRef.delete();
+            await supabaseStorage.deleteTimelineFile(userId);
             await this.deleteTimelineMetadata();
-            console.log('✓ Timeline data deleted');
+            console.log('✓ Timeline data deleted from Supabase');
         } catch (error) {
-            if (error.code === 'storage/object-not-found') {
-                console.log('No timeline data to delete');
-            } else {
-                throw error;
-            }
+            console.error('Supabase delete error:', error);
+            throw error;
         }
     }
 
