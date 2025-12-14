@@ -4,6 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com;
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+        font-src 'self' https://fonts.gstatic.com;
+        connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://nominatim.openstreetmap.org wss://*.firebaseio.com https://firestore.googleapis.com;
+        frame-src 'self' https://*.firebaseapp.com https://accounts.google.com;
+        img-src 'self' data: https:;
+    ">
     <title>Office Visits Analyzer - Google Maps Timeline</title>
     <meta name="description" content="Analyze your Google Maps Timeline to track office visits by month">
     <link rel="stylesheet" href="styles.css">
