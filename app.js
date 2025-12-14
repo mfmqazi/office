@@ -1,4 +1,4 @@
-// Google Maps Timeline Analyzer - iPhone Compatible
+// Google Maps Timeline Analyzer - iPhone Compatible with IndexedDB Storage
 class TimelineAnalyzer {
     constructor() {
         this.timelineData = null;
@@ -7,10 +7,12 @@ class TimelineAnalyzer {
         this.selectedMonth = null;
         this.selectedYear = null;
         this.isAuthenticated = false;
+        this.storage = new TimelineStorage();
 
         this.initializeElements();
         this.attachEventListeners();
         this.initGoogleAuth();
+        this.loadStoredData(); // Auto-load data from IndexedDB
     }
 
     initializeElements() {
@@ -296,6 +298,10 @@ class TimelineAnalyzer {
                 throw new Error('No timeline data found in the file');
             }
 
+            // Save to IndexedDB for persistence
+            await this.storage.saveTimelineData(data, file.name);
+            console.log('✓ Data saved to IndexedDB');
+
             this.fileName.textContent = file.name;
             this.uploadArea.style.display = 'none';
             this.fileInfo.style.display = 'flex';
@@ -303,12 +309,42 @@ class TimelineAnalyzer {
             this.populateYearSelect();
             this.validateForm();
 
-            this.showNotification(`✓ Successfully loaded ${this.timelineData.length} location records`, 'success');
+            this.showNotification(`✓ Successfully loaded ${this.timelineData.length} location records and saved for future use!`, 'success');
         } catch (error) {
             alert('Error reading file: ' + error.message);
             console.error(error);
         } finally {
             this.showLoading(false);
+        }
+    }
+
+    async loadStoredData() {
+        try {
+            const storedRecord = await this.storage.getTimelineData();
+
+            if (storedRecord) {
+                console.log('=== LOADING STORED DATA ===');
+                console.log('Stored file:', storedRecord.fileName);
+                console.log('Upload date:', new Date(storedRecord.uploadDate).toLocaleString());
+
+                this.timelineData = this.parseTimelineData(storedRecord.data);
+
+                if (this.timelineData && this.timelineData.length > 0) {
+                    this.fileName.textContent = storedRecord.fileName + ' (from storage)';
+                    this.uploadArea.style.display = 'none';
+                    this.fileInfo.style.display = 'flex';
+
+                    this.populateYearSelect();
+                    this.validateForm();
+
+                    console.log(`✓ Loaded ${this.timelineData.length} records from storage`);
+                    this.showNotification(`✓ Loaded ${this.timelineData.length} records from previous upload`, 'success');
+                }
+            } else {
+                console.log('No stored data found - upload your Timeline JSON to get started');
+            }
+        } catch (error) {
+            console.error('Error loading stored data:', error);
         }
     }
 
@@ -504,7 +540,11 @@ class TimelineAnalyzer {
         return null;
     }
 
-    removeFile() {
+    async removeFile() {
+        // Delete from IndexedDB
+        await this.storage.deleteTimelineData();
+        console.log('✓ Data removed from IndexedDB');
+
         this.timelineData = null;
         this.fileInput.value = '';
         this.uploadArea.style.display = 'block';
@@ -512,6 +552,8 @@ class TimelineAnalyzer {
         this.resultsSection.style.display = 'none';
         this.yearSelect.innerHTML = '<option value="">Select a year</option>';
         this.validateForm();
+
+        this.showNotification('✓ Data removed. Upload a new file to start fresh.', 'success');
     }
 
     updateRadius() {
