@@ -1119,6 +1119,9 @@ class TimelineAnalyzer {
     }
 
     renderYearlySummary(visits) {
+        console.log('=== RENDERING YEARLY SUMMARY ===');
+        console.log('Total visits to summarize:', visits.length);
+
         const monthNames = [
             'January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December'
@@ -1127,13 +1130,16 @@ class TimelineAnalyzer {
         // Group visits by month
         const monthlyData = {};
         visits.forEach(visit => {
-            const month = visit.date.getMonth();
+            // Ensure date is a Date object
+            const date = visit.date instanceof Date ? visit.date : new Date(visit.date);
+            const month = date.getMonth();
+
             if (!monthlyData[month]) {
                 monthlyData[month] = { visits: 0, duration: 0, days: new Set() };
             }
             monthlyData[month].visits++;
             monthlyData[month].duration += visit.duration;
-            monthlyData[month].days.add(visit.date.toDateString());
+            monthlyData[month].days.add(date.toDateString());
         });
 
         // Create summary HTML
@@ -1187,7 +1193,9 @@ class TimelineAnalyzer {
             </div>
         `;
 
+        console.log('Generated Summary HTML length:', html.length);
         this.visitsListEl.innerHTML = html;
+        console.log('Updated visitsListEl with summary');
     }
 
     renderVisitsList(visits) {
