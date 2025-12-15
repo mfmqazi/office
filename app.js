@@ -1216,6 +1216,15 @@ class TimelineAnalyzer {
         console.log('visitsListEl innerHTML length:', this.visitsListEl.innerHTML.length);
         console.log('resultsSection hidden:', this.resultsSection?.hidden);
         console.log('visitsListEl display:', this.visitsListEl.style.display);
+
+        // Log the actual HTML for inspection
+        console.log('Generated HTML preview (first 500 chars):', html.substring(0, 500));
+
+        // Try alternative method: create element and append
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        console.log('Temp div children count:', tempDiv.children.length);
+
         console.log('=== END DEBUG ===');
     }
 
