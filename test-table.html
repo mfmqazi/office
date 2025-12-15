@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Test</title>
+    <style>
+        body {
+            background: #0f0f23;
+            color: white;
+            font-family: Arial, sans-serif;
+            padding: 2rem;
+        }
+
+        .yearly-summary {
+            padding: 1rem;
+        }
+
+        .monthly-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .monthly-table th,
+        .monthly-table td {
+            padding: 0.875rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .monthly-table th {
+            background: rgba(99, 102, 241, 0.2);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+        }
+
+        .monthly-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .monthly-table tfoot tr {
+            border-top: 2px solid rgba(99, 102, 241, 0.3);
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Table Rendering Test</h1>
+
+    <div id="test-container"></div>
+
+    <script>
+        const container = document.getElementById('test-container');
+        const html = `
+            <div class="yearly-summary">
+                <h3 style="margin-bottom: 1rem; color: white;">📊 Monthly Breakdown</h3>
+                <table class="monthly-table">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Visits</th>
+                            <th>Days</th>
+                            <th>Total Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="color: white; font-weight: bold;">January</td>
+                            <td style="color: white;">15</td>
+                            <td style="color: white;">10</td>
+                            <td style="color: white;">12h 30m</td>
+                        </tr>
+                        <tr>
+                            <td style="color: white; font-weight: bold;">February</td>
+                            <td style="color: white;">18</td>
+                            <td style="color: white;">12</td>
+                            <td style="color: white;">15h 20m</td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr style="background: rgba(99, 102, 241, 0.2);">
+                            <td style="color: white;">TOTAL</td>
+                            <td style="color: white;">33</td>
+                            <td style="color: white;">22</td>
+                            <td style="color: white;">27h 50m</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        `;
+
+        console.log('Setting innerHTML...');
+        container.innerHTML = html;
+        console.log('innerHTML set. Length:', container.innerHTML.length);
+    </script>
+</body>
+
+</html>

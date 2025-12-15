@@ -1210,7 +1210,13 @@ class TimelineAnalyzer {
         this.visitsListEl.innerHTML = html;
         this.visitsListEl.style.display = 'block'; // Force block display
 
+        console.log('=== DISPLAY DEBUG ===');
         console.log('Updated visitsListEl with summary');
+        console.log('visitsListEl exists:', !!this.visitsListEl);
+        console.log('visitsListEl innerHTML length:', this.visitsListEl.innerHTML.length);
+        console.log('resultsSection hidden:', this.resultsSection?.hidden);
+        console.log('visitsListEl display:', this.visitsListEl.style.display);
+        console.log('=== END DEBUG ===');
     }
 
     renderVisitsList(visits) {
