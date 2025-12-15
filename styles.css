@@ -810,3 +810,49 @@ small {
         align-items: flex-start;
     }
 }
+
+/* Monthly Summary Table */
+.yearly-summary {
+    padding: 1rem;
+}
+
+.monthly-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.monthly-table th,
+.monthly-table td {
+    padding: 0.875rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.monthly-table th {
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--text-primary);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+}
+
+.monthly-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.monthly-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.monthly-table tfoot tr {
+    border-top: 2px solid rgba(99, 102, 241, 0.3);
+}
+
+.monthly-table tfoot td {
+    border-bottom: none;
+    color: var(--accent-primary);
+}

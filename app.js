@@ -582,6 +582,12 @@ class TimelineAnalyzer {
             'July', 'August', 'September', 'October', 'November', 'December'
         ];
 
+        // Add "Full Year" option first
+        const fullYearOption = document.createElement('option');
+        fullYearOption.value = 'all';
+        fullYearOption.textContent = '📊 Full Year Summary';
+        this.monthSelect.appendChild(fullYearOption);
+
         months.forEach((month, index) => {
             const option = document.createElement('option');
             option.value = index;
@@ -949,12 +955,14 @@ class TimelineAnalyzer {
             try {
                 const officeLat = parseFloat(this.officeLatInput.value);
                 const officeLng = parseFloat(this.officeLngInput.value);
-                const month = parseInt(this.monthSelect.value);
+                const monthValue = this.monthSelect.value;
+                const isFullYear = monthValue === 'all';
+                const month = isFullYear ? null : parseInt(monthValue);
                 const year = parseInt(this.yearSelect.value);
 
                 console.log('=== ANALYZING VISITS ===');
                 console.log('Office location:', { lat: officeLat, lng: officeLng });
-                console.log('Month:', month, 'Year:', year);
+                console.log('Month:', isFullYear ? 'Full Year' : month, 'Year:', year);
                 console.log('Radius:', this.radius, 'meters');
 
                 const visits = [];
@@ -971,10 +979,9 @@ class TimelineAnalyzer {
 
                     processedCount++;
 
-                    // Check month and year
-                    if (date.getMonth() !== month || date.getFullYear() !== year) {
-                        return;
-                    }
+                    // Check year (and month if not full year)
+                    if (date.getFullYear() !== year) return;
+                    if (!isFullYear && date.getMonth() !== month) return;
 
                     const coords = this.extractLatLng(location);
                     if (!coords) return;
@@ -1024,7 +1031,7 @@ class TimelineAnalyzer {
 
                 const processedVisits = this.processVisits(visits);
 
-                this.displayResults(processedVisits, visitDates.size);
+                this.displayResults(processedVisits, visitDates.size, isFullYear);
             } catch (error) {
                 alert('Error analyzing visits: ' + error.message);
                 console.error(error);
@@ -1093,7 +1100,7 @@ class TimelineAnalyzer {
         };
     }
 
-    displayResults(visits, uniqueDays) {
+    displayResults(visits, uniqueDays, isFullYear = false) {
         const totalVisits = visits.length;
         const totalDuration = visits.reduce((sum, v) => sum + v.duration, 0);
         const avgDuration = totalVisits > 0 ? totalDuration / totalVisits : 0;
@@ -1102,9 +1109,85 @@ class TimelineAnalyzer {
         this.uniqueDaysEl.textContent = uniqueDays;
         this.avgDurationEl.textContent = this.formatDuration(avgDuration);
 
-        this.renderVisitsList(visits);
+        if (isFullYear) {
+            this.renderYearlySummary(visits);
+        } else {
+            this.renderVisitsList(visits);
+        }
 
         this.currentResults = visits;
+    }
+
+    renderYearlySummary(visits) {
+        const monthNames = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+
+        // Group visits by month
+        const monthlyData = {};
+        visits.forEach(visit => {
+            const month = visit.date.getMonth();
+            if (!monthlyData[month]) {
+                monthlyData[month] = { visits: 0, duration: 0, days: new Set() };
+            }
+            monthlyData[month].visits++;
+            monthlyData[month].duration += visit.duration;
+            monthlyData[month].days.add(visit.date.toDateString());
+        });
+
+        // Create summary HTML
+        let html = `
+            <div class="yearly-summary">
+                <h3 style="margin-bottom: 1rem; color: var(--text-primary);">📊 Monthly Breakdown</h3>
+                <table class="monthly-table">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Visits</th>
+                            <th>Days</th>
+                            <th>Total Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        let grandTotalVisits = 0;
+        let grandTotalDays = 0;
+        let grandTotalDuration = 0;
+
+        monthNames.forEach((name, index) => {
+            const data = monthlyData[index];
+            if (data) {
+                grandTotalVisits += data.visits;
+                grandTotalDays += data.days.size;
+                grandTotalDuration += data.duration;
+                html += `
+                    <tr>
+                        <td><strong>${name}</strong></td>
+                        <td>${data.visits}</td>
+                        <td>${data.days.size}</td>
+                        <td>${this.formatDuration(data.duration)}</td>
+                    </tr>
+                `;
+            }
+        });
+
+        html += `
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight: bold; background: rgba(99, 102, 241, 0.1);">
+                            <td>TOTAL</td>
+                            <td>${grandTotalVisits}</td>
+                            <td>${grandTotalDays}</td>
+                            <td>${this.formatDuration(grandTotalDuration)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        `;
+
+        this.visitsListEl.innerHTML = html;
     }
 
     renderVisitsList(visits) {
