@@ -996,13 +996,23 @@ class TimelineAnalyzer {
                         visitDates.add(date.toDateString());
 
                         // Log first few matches
-                        if (matchedCount <= 5) {
+                        if (matchedCount <= 10) {
                             console.log(`Match ${matchedCount}:`, {
                                 date: date.toLocaleString(),
                                 distance: Math.round(distance) + 'm',
                                 coords: coords
                             });
                         }
+                    }
+
+                    // Debug: Log all Dec 5 records regardless of distance
+                    if (date.getDate() === 5 && date.getMonth() === 11) { // Dec 5
+                        console.log(`Dec 5 record:`, {
+                            date: date.toLocaleString(),
+                            distance: Math.round(distance) + 'm',
+                            withinRadius: distance <= this.radius,
+                            coords: coords
+                        });
                     }
                 });
 
