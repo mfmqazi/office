@@ -1204,11 +1204,16 @@ class TimelineAnalyzer {
 
         console.log('Generated Summary HTML length:', html.length);
 
-        // Ensure section is visible
-        if (this.resultsSection) this.resultsSection.hidden = false;
+        // Ensure section is visible - CRITICAL!
+        if (this.resultsSection) {
+            this.resultsSection.hidden = false;
+            this.resultsSection.style.display = 'block';
+        }
 
         this.visitsListEl.innerHTML = html;
         this.visitsListEl.style.display = 'block'; // Force block display
+        this.visitsListEl.style.visibility = 'visible'; // Force visibility
+        this.visitsListEl.style.opacity = '1'; // Force opacity
 
         console.log('=== DISPLAY DEBUG ===');
         console.log('Updated visitsListEl with summary');
@@ -1226,6 +1231,9 @@ class TimelineAnalyzer {
         console.log('Temp div children count:', tempDiv.children.length);
 
         console.log('=== END DEBUG ===');
+
+        // Scroll results into view, matching renderVisitsList behavior
+        this.resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     renderVisitsList(visits) {
