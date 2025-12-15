@@ -111,8 +111,11 @@ class SupabaseManager {
             console.error('Token refresh failed:', error);
         }
 
-        // Clear invalid session
+        // Clear invalid session and sign out
+        console.log('Clearing invalid session...');
         localStorage.removeItem('supabase.auth.token');
+        this.currentUser = null;
+        this.notifyAuthListeners(null); // Force UI update
         return false;
     }
 
