@@ -321,9 +321,11 @@ class SupabaseManager {
         try {
             const fileName = `${userId}/timeline.json`;
 
+            // Use HEAD request to check if file exists
             const response = await fetch(
-                `${this.supabaseUrl}/storage/v1/object/info/${this.bucketName}/${fileName}`,
+                `${this.supabaseUrl}/storage/v1/object/${this.bucketName}/${fileName}`,
                 {
+                    method: 'HEAD',
                     headers: {
                         'Authorization': `Bearer ${this.supabaseKey}`
                     }
@@ -331,20 +333,20 @@ class SupabaseManager {
             );
 
             if (!response.ok) {
-                if (response.status === 404) return null;
-                throw new Error(`Metadata fetch failed: ${response.statusText}`);
+                return null; // File doesn't exist
             }
 
-            const metadata = await response.json();
+            // Get size from Content-Length header
+            const size = parseInt(response.headers.get('Content-Length') || '0');
 
             return {
                 fileName: 'location-history.json',
-                fileSize: metadata.metadata?.size || 0,
-                uploadDate: metadata.created_at,
-                sizeInMB: ((metadata.metadata?.size || 0) / (1024 * 1024)).toFixed(2)
+                fileSize: size,
+                uploadDate: new Date().toISOString(),
+                sizeInMB: (size / (1024 * 1024)).toFixed(2)
             };
         } catch (error) {
-            console.error('Metadata fetch error:', error);
+            // Silently return null - file check failed but that's okay
             return null;
         }
     }
