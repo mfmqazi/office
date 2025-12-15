@@ -1162,31 +1162,40 @@ class TimelineAnalyzer {
         let grandTotalDays = 0;
         let grandTotalDuration = 0;
 
+        let height = 0;
+        let hasData = false;
+
+        // Loop 0-11
         monthNames.forEach((name, index) => {
             const data = monthlyData[index];
             if (data) {
+                hasData = true;
                 grandTotalVisits += data.visits;
                 grandTotalDays += data.days.size;
                 grandTotalDuration += data.duration;
                 html += `
                     <tr>
-                        <td><strong>${name}</strong></td>
-                        <td>${data.visits}</td>
-                        <td>${data.days.size}</td>
-                        <td>${this.formatDuration(data.duration)}</td>
+                        <td style="color: white; font-weight: bold;">${name}</td>
+                        <td style="color: white;">${data.visits}</td>
+                        <td style="color: white;">${data.days.size}</td>
+                        <td style="color: white;">${this.formatDuration(data.duration)}</td>
                     </tr>
                 `;
             }
         });
 
+        if (!hasData) {
+            html += `<tr><td colspan="4" style="text-align: center; padding: 2rem;">No visits summary data available</td></tr>`;
+        }
+
         html += `
                     </tbody>
                     <tfoot>
-                        <tr style="font-weight: bold; background: rgba(99, 102, 241, 0.1);">
-                            <td>TOTAL</td>
-                            <td>${grandTotalVisits}</td>
-                            <td>${grandTotalDays}</td>
-                            <td>${this.formatDuration(grandTotalDuration)}</td>
+                        <tr style="font-weight: bold; background: rgba(99, 102, 241, 0.2);">
+                            <td style="color: white;">TOTAL</td>
+                            <td style="color: white;">${grandTotalVisits}</td>
+                            <td style="color: white;">${grandTotalDays}</td>
+                            <td style="color: white;">${this.formatDuration(grandTotalDuration)}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -1194,7 +1203,13 @@ class TimelineAnalyzer {
         `;
 
         console.log('Generated Summary HTML length:', html.length);
+
+        // Ensure section is visible
+        if (this.resultsSection) this.resultsSection.hidden = false;
+
         this.visitsListEl.innerHTML = html;
+        this.visitsListEl.style.display = 'block'; // Force block display
+
         console.log('Updated visitsListEl with summary');
     }
 
