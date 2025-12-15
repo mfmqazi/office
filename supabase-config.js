@@ -18,11 +18,19 @@ class SupabaseManager {
     // ==================== AUTH METHODS ====================
 
     async initAuth() {
+        console.log('=== SUPABASE INIT AUTH ===');
+
         // Check for existing session
-        const session = await this.getSession();
-        if (session?.user) {
-            this.currentUser = session.user;
-            this.notifyAuthListeners(session.user);
+        try {
+            const session = await this.getSession();
+            console.log('Session check result:', session ? 'Found user' : 'No session');
+
+            if (session?.user) {
+                this.currentUser = session.user;
+                this.notifyAuthListeners(session.user);
+            }
+        } catch (error) {
+            console.error('Session check error:', error);
         }
 
         // Listen for auth changes (e.g., from OAuth callback)
