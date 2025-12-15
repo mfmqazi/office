@@ -50,11 +50,70 @@ class SupabaseManager {
                 const user = await response.json();
                 return { user };
             }
+
+            // If 401, try to refresh the token
+            if (response.status === 401) {
+                console.log('Token expired, attempting refresh...');
+                const refreshed = await this.refreshToken();
+                if (refreshed) {
+                    // Retry with new token
+                    const retryResponse = await fetch(`${this.supabaseUrl}/auth/v1/user`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.getAccessToken()}`,
+                            'apikey': this.supabaseKey
+                        }
+                    });
+                    if (retryResponse.ok) {
+                        const user = await retryResponse.json();
+                        return { user };
+                    }
+                }
+            }
+
             return null;
         } catch (error) {
             console.log('No active session');
             return null;
         }
+    }
+
+    async refreshToken() {
+        const storedSession = localStorage.getItem('supabase.auth.token');
+        if (!storedSession) return false;
+
+        try {
+            const parsed = JSON.parse(storedSession);
+            const refreshToken = parsed.currentSession?.refresh_token || parsed.refresh_token;
+
+            if (!refreshToken) return false;
+
+            const response = await fetch(`${this.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': this.supabaseKey
+                },
+                body: JSON.stringify({ refresh_token: refreshToken })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const session = {
+                    access_token: data.access_token,
+                    refresh_token: data.refresh_token,
+                    expires_at: Date.now() + (data.expires_in * 1000)
+                };
+                localStorage.setItem('supabase.auth.token', JSON.stringify({ currentSession: session }));
+                console.log('✓ Token refreshed successfully');
+                return true;
+            }
+        } catch (error) {
+            console.error('Token refresh failed:', error);
+        }
+
+        // Clear invalid session
+        localStorage.removeItem('supabase.auth.token');
+        return false;
     }
 
     getAccessToken() {
