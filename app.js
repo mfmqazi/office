@@ -639,33 +639,51 @@ class TimelineAnalyzer {
             console.log('File name:', file.name);
             console.log('File size:', file.size, 'bytes');
 
-            this.timelineData = this.parseTimelineData(data);
+            let finalData = this.parseTimelineData(data);
 
-            if (!this.timelineData || this.timelineData.length === 0) {
+            if (!finalData || finalData.length === 0) {
                 throw new Error('No timeline data found in the file');
             }
 
-            // Save to IndexedDB for persistence
-            await this.storage.saveTimelineData(data, file.name);
-            console.log('✓ Data saved to IndexedDB');
-
-            // If user is signed in, also upload to Supabase Storage
+            // Sync with Supabase if signed in
             if (this.supabase.getCurrentUser()) {
-                console.log('✓ User signed in - uploading to Supabase Storage...');
-                this.showNotification('Uploading to cloud storage...', 'info');
+                console.log('✓ User signed in - checking for existing cloud data...');
+                this.showNotification('Syncing with cloud storage...', 'info');
 
                 try {
-                    await this.supabase.uploadTimelineData(file, (progress) => {
+                    // Download existing data to merge
+                    const existingData = await this.supabase.downloadTimelineData();
+
+                    if (existingData) {
+                        const existingParsed = this.parseTimelineData(existingData);
+                        finalData = this.mergeAndDeduplicate(existingParsed, finalData);
+                        this.showNotification(`✓ Merged with cloud data! Total records: ${finalData.length}`, 'success');
+                    }
+
+                    // Upload merged data as a new Blob
+                    console.log('Uploading merged data...');
+                    const mergedBlob = new Blob([JSON.stringify(finalData)], { type: 'application/json' });
+
+                    await this.supabase.uploadTimelineData(mergedBlob, (progress) => {
                         console.log(`Upload progress: ${progress.toFixed(1)}%`);
                     });
-                    this.showNotification('✓ Data saved to cloud! Available on all your devices.', 'success');
-                } catch (uploadError) {
-                    console.error('Supabase upload error:', uploadError);
-                    this.showNotification('⚠️ Saved locally, but cloud upload failed. You can try again later.', 'warning');
+
+                    this.showNotification('✓ Cloud storage updated with new records!', 'success');
+
+                } catch (syncError) {
+                    console.error('Supabase sync error:', syncError);
+                    this.showNotification('⚠️ Cloud sync failed. Using local file only.', 'warning');
                 }
             }
 
-            this.fileName.textContent = file.name;
+            this.timelineData = finalData;
+
+            // Save to IndexedDB (always save the FULL merged dataset)
+            // storage.saveTimelineData expects 'data' object or array. finalData is array.
+            await this.storage.saveTimelineData(this.timelineData, file.name);
+            console.log('✓ Data saved to IndexedDB');
+
+            this.fileName.textContent = file.name + (this.supabase.getCurrentUser() ? ' (+ Cloud Merged)' : '');
             this.uploadArea.style.display = 'none';
             this.fileInfo.style.display = 'flex';
 
@@ -679,6 +697,44 @@ class TimelineAnalyzer {
         } finally {
             this.showLoading(false);
         }
+    }
+
+    mergeAndDeduplicate(existing, newItems) {
+        console.log('=== MERGING DATASETS ===');
+        console.log(`Existing records: ${existing.length}`);
+        console.log(`New records: ${newItems.length}`);
+
+        const seen = new Set();
+        const merged = [];
+
+        // Strategy: Add NEW items first (updates overwrite old)
+        // Then add EXISTING items only if their timestamp wasn't seen in new items
+
+        const addToMerged = (item) => {
+            const timestamp = this.extractTimestamp(item);
+            if (!timestamp) return;
+
+            // Use timestamp as unique key
+            if (!seen.has(timestamp)) {
+                seen.add(timestamp);
+                merged.push(item);
+            }
+        };
+
+        // 1. Process new items first (priority)
+        newItems.forEach(addToMerged);
+
+        // 2. Process existing items (backfill)
+        existing.forEach(addToMerged);
+
+        console.log(`Merged total: ${merged.length} (duplicates removed: ${existing.length + newItems.length - merged.length})`);
+
+        // Sort by time to keep it clean
+        return merged.sort((a, b) => {
+            const tA = new Date(this.extractTimestamp(a)).getTime();
+            const tB = new Date(this.extractTimestamp(b)).getTime();
+            return tA - tB;
+        });
     }
 
     async loadStoredData() {
