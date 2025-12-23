@@ -361,11 +361,13 @@ class SupabaseManager {
 
             console.log('Downloading from Supabase Storage:', fileName);
 
+            // Add timestamp to prevent caching
             const response = await fetch(
-                `${this.supabaseUrl}/storage/v1/object/${this.bucketName}/${fileName}`,
+                `${this.supabaseUrl}/storage/v1/object/${this.bucketName}/${fileName}?t=${Date.now()}`,
                 {
                     headers: {
-                        'Authorization': `Bearer ${this.supabaseKey}`
+                        'Authorization': `Bearer ${this.supabaseKey}`,
+                        'Cache-Control': 'no-cache'
                     }
                 }
             );
