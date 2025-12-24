@@ -205,24 +205,33 @@ class TimelineAnalyzer {
                 console.log('=== LOADING FROM SUPABASE STORAGE ===');
                 console.log('File:', storageInfo.fileName);
                 console.log('Size:', storageInfo.sizeInMB, 'MB');
-                console.log('Uploaded:', new Date(storageInfo.uploadDate).toLocaleString());
 
-                this.showNotification('Loading your timeline data from cloud...', 'info');
+                this.showNotification('Syncing your timeline data...', 'info');
 
-                const data = await this.supabase.downloadTimelineData();
+                const cloudDataRaw = await this.supabase.downloadTimelineData();
 
-                if (data) {
-                    this.timelineData = this.parseTimelineData(data);
+                if (cloudDataRaw) {
+                    const cloudData = this.parseTimelineData(cloudDataRaw);
 
-                    if (this.timelineData && this.timelineData.length > 0) {
-                        this.fileName.textContent = storageInfo.fileName + ' (from cloud)';
+                    if (cloudData && cloudData.length > 0) {
+                        let finalData = cloudData;
+
+                        // If we already have local data, merge them!
+                        if (this.timelineData && this.timelineData.length > 0) {
+                            console.log('Merging cloud data with local data...');
+                            finalData = this.mergeAndDeduplicate(this.timelineData, cloudData);
+                        }
+
+                        this.timelineData = finalData;
+
+                        this.fileName.textContent = storageInfo.fileName + ' (Synced)';
                         this.uploadArea.style.display = 'none';
                         this.fileInfo.style.display = 'flex';
 
                         this.populateYearSelect();
                         this.validateForm();
 
-                        this.showNotification(`✓ Loaded ${this.timelineData.length} records from cloud`, 'success');
+                        this.showNotification(`✓ Synced! Total records: ${this.timelineData.length}`, 'success');
                         this.autoAnalyzeIfReady();
                     }
                 }
@@ -231,6 +240,7 @@ class TimelineAnalyzer {
             }
         } catch (error) {
             console.error('Error loading from Supabase:', error);
+            this.showNotification('Could not sync with cloud. Using local data.', 'warning');
         }
     }
 

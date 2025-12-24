@@ -320,9 +320,13 @@ class SupabaseManager {
 
         try {
             const fileName = `${this.currentUser.id}/timeline.json`;
-            const fileContent = await file.text();
 
-            console.log('Uploading to Supabase Storage:', fileName);
+            // Check file size (Supabase Free Tier often limits to 50MB)
+            if (file.size > 50 * 1024 * 1024) {
+                console.warn('File size exceeds 50MB, upload might fail on free tier');
+            }
+
+            console.log('Uploading to Supabase Storage:', fileName, 'Size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
 
             const response = await fetch(
                 `${this.supabaseUrl}/storage/v1/object/${this.bucketName}/${fileName}`,
@@ -331,15 +335,16 @@ class SupabaseManager {
                     headers: {
                         'Authorization': `Bearer ${this.supabaseKey}`,
                         'Content-Type': 'application/json',
-                        'x-upsert': 'true'
+                        'x-upsert': 'true',
+                        'Cache-Control': 'no-cache'
                     },
-                    body: fileContent
+                    body: file // Send file/blob directly instead of reading to string first
                 }
             );
 
             if (!response.ok) {
                 const error = await response.text();
-                throw new Error(`Upload failed: ${error}`);
+                throw new Error(`Upload failed (${response.status}): ${error}`);
             }
 
             console.log('✓ Upload complete to Supabase');
