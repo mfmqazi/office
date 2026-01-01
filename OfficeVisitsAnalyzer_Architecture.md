@@ -19,7 +19,7 @@ graph TB
     Browser[Web Browser]
     App[Office Visits Analyzer]
     Google[Google Takeout]
-    Supabase[Supabase Cloud]
+    Firebase[Firebase Cloud]
     GitHub[GitHub Pages]
     Nominatim[Nominatim Geocoding API]
     
@@ -27,15 +27,15 @@ graph TB
     Google -->|Exports Timeline Data| User
     Browser -->|Runs Application| App
     App -->|Stores Data Locally| IndexedDB[(IndexedDB)]
-    App -->|Optional: Cloud Backup| Supabase
+    App -->|Optional: Cloud Backup| Firebase
     App -->|Geocoding Queries| Nominatim
     GitHub -->|Serves Static Files| Browser
-    Supabase -->|Authentication| Browser
-    Supabase -->|File Storage| Browser
+    Firebase -->|Authentication| Browser
+    Firebase -->|File Storage| Browser
     
     style App fill:#667eea
     style Browser fill:#10b981
-    style Supabase fill:#f59e0b
+    style Firebase fill:#ffca28
 ```
 
 ### Explanation
@@ -46,14 +46,14 @@ graph TB
 - **User**: Primary actor who uploads Google Timeline data and interacts with the application
 - **Google Takeout**: Data source providing location history in JSON format
 - **GitHub Pages**: Static hosting platform serving the application files
-- **Supabase Cloud**: Optional cloud services for authentication and file backup
+- **Firebase Cloud**: Optional cloud services for authentication, database, and file backup
 - **Nominatim API**: Open-source geocoding service for address autocomplete
 
 **Key Interactions:**
 1. User exports timeline data from Google Takeout
 2. User uploads JSON file to the application running in their browser
 3. Application processes data locally and stores in IndexedDB
-4. Optionally, authenticated users can backup to Supabase cloud storage
+4. Optionally, authenticated users can backup to Firebase cloud storage
 5. Application queries Nominatim for address autocomplete functionality
 
 **Ecosystem Position**: The system acts as a privacy-preserving analytics layer on top of Google's location history data, providing specialized office visit tracking without requiring server-side processing.
@@ -100,7 +100,7 @@ graph TB
         
         subgraph "Storage Layer"
             IDB[IndexedDB Manager]
-            Supabase[Supabase Manager]
+            Firebase[Firebase Manager]
             LocalSettings[Settings Storage]
         end
         
@@ -128,12 +128,12 @@ graph TB
     end
     
     subgraph "External Services"
-        SupabaseCloud[Supabase Cloud]
+        FirebaseCloud[Firebase Cloud]
         NominatimAPI[Nominatim API]
     end
     
-    Auth --> SupabaseCloud
-    Storage --> SupabaseCloud
+    Auth --> FirebaseCloud
+    Storage --> FirebaseCloud
     Location --> NominatimAPI
     
     style UI fill:#667eea
@@ -152,23 +152,23 @@ graph TB
   - Implements responsive design for mobile and desktop
 - **Technology**: HTML5, CSS3 with custom properties, Glassmorphism UI design
 
-#### 2. **Authentication Module** (`supabase-config.js`)
-- **Purpose**: Manages user authentication via Supabase
+#### 2. **Authentication Module** (`firebase-config.js`)
+- **Purpose**: Manages user authentication via Firebase
 - **Responsibilities**:
   - Google OAuth sign-in/sign-out
   - Session management and persistence
   - User state tracking
   - Authentication UI updates
-- **Technology**: Supabase Auth SDK
+- **Technology**: Firebase Auth SDK
 
-#### 3. **Storage Manager** (`storage.js`, `supabase-config.js`)
+#### 3. **Storage Manager** (`storage.js`, `firebase-config.js`)
 - **Purpose**: Dual-layer storage strategy for data persistence
 - **Responsibilities**:
   - **Local Storage** (IndexedDB): Primary data persistence, enables offline use
-  - **Cloud Storage** (Supabase): Optional backup for multi-device access
+  - **Cloud Storage** (Firebase): Optional backup for multi-device access
   - Sync logic between local and cloud storage
-  - File upload/download to/from Supabase Storage
-- **Technology**: IndexedDB API, Supabase Storage SDK
+  - File upload/download to/from Firebase Storage
+- **Technology**: IndexedDB API, Firebase Storage SDK
 
 #### 4. **Settings Manager** (`settings.js`)
 - **Purpose**: Manages user preferences and default configurations

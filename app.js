@@ -1,4 +1,4 @@
-// Google Maps Timeline Analyzer - Supabase Edition - Updated: 2024-12-14T16:21
+// Google Maps Timeline Analyzer - Firebase Edition - Updated: 2025-12-31T22:30
 class TimelineAnalyzer {
     constructor() {
         this.timelineData = null;
@@ -9,14 +9,14 @@ class TimelineAnalyzer {
         this.isAuthenticated = false;
         this.storage = new TimelineStorage();
         this.settings = new SettingsManager();
-        this.supabase = new SupabaseManager();
+        this.cloud = new FirebaseManager();
         this.autocompleteTimeout = null;
         this.selectedAutocompleteIndex = -1;
 
         this.initializeElements();
         this.attachEventListeners();
         this.initGoogleAuth();
-        this.initSupabaseAuth();
+        this.initCloudAuth();
         this.loadStoredData();
         this.loadDefaultOffice();
     }
@@ -95,8 +95,8 @@ class TimelineAnalyzer {
                 Signing in...
             `;
 
-            console.log('Attempting Supabase sign-in...');
-            await this.supabase.signInWithGoogle();
+            console.log('Attempting Google sign-in...');
+            await this.cloud.signInWithGoogle();
             // Redirect will happen, user will return authenticated
 
             // Success - button will be updated by auth state listener
@@ -148,22 +148,22 @@ class TimelineAnalyzer {
         }, 10000);
     }
 
-    initSupabaseAuth() {
+    initCloudAuth() {
         // Listen for auth state changes
-        this.supabase.onAuthChange(async (user) => {
+        this.cloud.onAuthChange(async (user) => {
             if (user) {
-                console.log('=== SUPABASE USER SIGNED IN ===');
+                console.log('=== FIREBASE USER SIGNED IN ===');
                 console.log('Email:', user.email);
                 console.log('UID:', user.id);
 
                 this.updateSignInUI(user);
                 this.showNotification(`✓ Signed in as ${user.email}`, 'success');
 
-                // Try to load data from Supabase Storage
-                await this.loadDataFromSupabase();
+                // Try to load data from Cloud Storage
+                await this.loadDataFromCloud();
 
-                // Try to load settings from Supabase
-                await this.loadSettingsFromSupabase();
+                // Try to load settings from Cloud
+                await this.loadSettingsFromCloud();
 
             } else {
                 console.log('User signed out or not authenticated');
@@ -191,24 +191,24 @@ class TimelineAnalyzer {
             const signOutBtn = document.getElementById('sign-out-btn');
             if (signOutBtn) {
                 signOutBtn.addEventListener('click', async () => {
-                    await this.supabase.signOut();
+                    await this.cloud.signOut();
                 });
             }
         }
     }
 
-    async loadDataFromSupabase() {
+    async loadDataFromCloud() {
         try {
-            const storageInfo = await this.supabase.getStorageInfo();
+            const storageInfo = await this.cloud.getStorageInfo();
 
             if (storageInfo) {
-                console.log('=== LOADING FROM SUPABASE STORAGE ===');
+                console.log('=== LOADING FROM CLOUD STORAGE ===');
                 console.log('File:', storageInfo.fileName);
                 console.log('Size:', storageInfo.sizeInMB, 'MB');
 
                 this.showNotification('Syncing your timeline data...', 'info');
 
-                const cloudDataRaw = await this.supabase.downloadTimelineData();
+                const cloudDataRaw = await this.cloud.downloadTimelineData();
 
                 if (cloudDataRaw) {
                     const cloudData = this.parseTimelineData(cloudDataRaw);
@@ -239,17 +239,17 @@ class TimelineAnalyzer {
                 console.log('No cloud data found');
             }
         } catch (error) {
-            console.error('Error loading from Supabase:', error);
+            console.error('Error loading from cloud:', error);
             this.showNotification('Could not sync with cloud. Using local data.', 'warning');
         }
     }
 
-    async loadSettingsFromSupabase() {
+    async loadSettingsFromCloud() {
         try {
-            const settings = await this.supabase.getSettings();
+            const settings = await this.cloud.getSettings();
 
             if (settings && settings.defaultOffice) {
-                console.log('=== LOADING SETTINGS FROM SUPABASE ===');
+                console.log('=== LOADING SETTINGS FROM CLOUD ===');
                 const office = settings.defaultOffice;
 
                 this.officeNameInput.value = office.name;
@@ -266,7 +266,7 @@ class TimelineAnalyzer {
                 this.autoAnalyzeIfReady();
             }
         } catch (error) {
-            console.error('Error loading settings from Supabase:', error);
+            console.error('Error loading settings from cloud:', error);
         }
     }
 
@@ -491,13 +491,13 @@ class TimelineAnalyzer {
             return;
         }
 
-        // If user is signed in, also save to Supabase
-        if (this.supabase.getCurrentUser()) {
+        // If user is signed in, also save to cloud
+        if (this.cloud.getCurrentUser()) {
             try {
-                await this.supabase.saveSettings({ defaultOffice: officeData });
+                await this.cloud.saveSettings({ defaultOffice: officeData });
                 this.showNotification('✓ Office settings synced to cloud!', 'success');
             } catch (error) {
-                console.error('Error saving to Supabase:', error);
+                console.error('Error saving to cloud:', error);
                 this.showNotification('⚠️ Saved locally, but cloud sync failed.', 'warning');
             }
         }
@@ -655,14 +655,14 @@ class TimelineAnalyzer {
                 throw new Error('No timeline data found in the file');
             }
 
-            // Sync with Supabase if signed in
-            if (this.supabase.getCurrentUser()) {
+            // Sync with Cloud if signed in
+            if (this.cloud.getCurrentUser()) {
                 console.log('✓ User signed in - checking for existing cloud data...');
                 this.showNotification('Syncing with cloud storage...', 'info');
 
                 try {
                     // Download existing data to merge
-                    const existingData = await this.supabase.downloadTimelineData();
+                    const existingData = await this.cloud.downloadTimelineData();
 
                     if (existingData) {
                         const existingParsed = this.parseTimelineData(existingData);
@@ -674,14 +674,14 @@ class TimelineAnalyzer {
                     console.log('Uploading merged data...');
                     const mergedBlob = new Blob([JSON.stringify(finalData)], { type: 'application/json' });
 
-                    await this.supabase.uploadTimelineData(mergedBlob, (progress) => {
+                    await this.cloud.uploadTimelineData(mergedBlob, (progress) => {
                         console.log(`Upload progress: ${progress.toFixed(1)}%`);
                     });
 
                     this.showNotification('✓ Cloud storage updated with new records!', 'success');
 
                 } catch (syncError) {
-                    console.error('Supabase sync error:', syncError);
+                    console.error('Cloud sync error:', syncError);
                     this.showNotification('⚠️ Cloud sync failed. Using local file only.', 'warning');
                 }
             }
@@ -693,7 +693,7 @@ class TimelineAnalyzer {
             await this.storage.saveTimelineData(this.timelineData, file.name);
             console.log('✓ Data saved to IndexedDB');
 
-            this.fileName.textContent = file.name + (this.supabase.getCurrentUser() ? ' (+ Cloud Merged)' : '');
+            this.fileName.textContent = file.name + (this.cloud.getCurrentUser() ? ' (+ Cloud Merged)' : '');
             this.uploadArea.style.display = 'none';
             this.fileInfo.style.display = 'flex';
 
